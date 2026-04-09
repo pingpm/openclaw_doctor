@@ -17,6 +17,24 @@ REPO_URL="https://ocd.imdaxia.com"
 LOG_FILE="$INSTALL_DIR/doctor.log"
 PID_FILE="$INSTALL_DIR/doctor.pid"
 
+# ── Stop command ──────────────────────────────────────────────────────────────
+if [ "${1}" = "stop" ]; then
+  if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if kill -0 "$OLD_PID" 2>/dev/null; then
+      kill "$OLD_PID"
+      rm -f "$PID_FILE"
+      echo -e "${GREEN}[ocd] ✅ OpenClaw Doctor stopped (PID $OLD_PID).${NC}"
+    else
+      echo -e "${YELLOW}[ocd] ⚠️  Process $OLD_PID is not running.${NC}"
+      rm -f "$PID_FILE"
+    fi
+  else
+    echo -e "${YELLOW}[ocd] ⚠️  No running instance found (no PID file).${NC}"
+  fi
+  exit 0
+fi
+
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${RED}  🦞 OpenClaw Doctor — Remote Diagnostic Installer${NC}"
@@ -131,19 +149,18 @@ done
 echo ""
 if [ -n "$TUNNEL_URL" ]; then
   FULL_LINK="${TUNNEL_URL}/?token=${TOKEN}"
-  echo -e "${GREEN}╔═════════════════════════════════════════════════════════╗${NC}"
-  echo -e "${GREEN}║       ✅  OPENCLAW DOCTOR IS ONLINE                      ║${NC}"
-  echo -e "${GREEN}╠═════════════════════════════════════════════════════════╣${NC}"
-  echo -e "${GREEN}║${NC}  🌐 Public URL : ${CYAN}${TUNNEL_URL}${NC}"
-  echo -e "${GREEN}║${NC}  🔐 Token      : ${YELLOW}${TOKEN}${NC}"
-  echo -e "${GREEN}║${NC}  🔗 Full Access: ${CYAN}${FULL_LINK}${NC}"
-  echo -e "${GREEN}║${NC}  📄 Logs       : ${LOG_FILE}"
-  echo -e "${GREEN}╚═════════════════════════════════════════════════════════╝${NC}"
+  echo ""
+  echo -e "${GREEN}✅  OPENCLAW DOCTOR IS ONLINE${NC}"
+  echo "─────────────────────────────────────────────────────────"
+  echo -e "🌐  Public URL  : ${CYAN}${TUNNEL_URL}${NC}"
+  echo -e "🔐  Token       : ${YELLOW}${TOKEN}${NC}"
+  echo -e "🔗  Full link   : ${CYAN}${FULL_LINK}${NC}"
+  echo "─────────────────────────────────────────────────────────"
   echo ""
   echo "  Share the full link above with another AI agent or browser to"
   echo "  remotely diagnose and repair this OpenClaw installation."
   echo ""
-  echo "  To stop:   kill \$(cat $PID_FILE)"
+  echo "  To stop:   bash ~/.openclaw-doctor/install.sh stop"
   echo "  To update: curl -sSL https://ocd.imdaxia.com/install.sh | bash"
 else
   warn "Tunnel URL not detected yet. Check logs: tail -f $LOG_FILE"

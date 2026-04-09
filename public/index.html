@@ -1,549 +1,866 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenClaw Doctor · Remote Terminal</title>
-  <meta name="description" content="Remote diagnostic and repair terminal for OpenClaw AI agent." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OpenClaw Doctor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06060a;
+  --panel:#0e0e14;
+  --border:rgba(255,255,255,0.08);
+  --accent:#e84545;
+  --ok:#3dffa0;
+  --warn:#ffc043;
+  --text:#e4e4ed;
+  --dim:#71717a;
+  --font:system-ui,-apple-system,sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5}
+body{display:flex;flex-direction:column;min-height:100vh}
 
-    :root {
-      --bg:        #07070a;
-      --panel:     #0d0d12;
-      --border:    rgba(255,255,255,0.07);
-      --accent:    #e84545;
-      --accent2:   #4f8ef7;
-      --ok:        #3effa0;
-      --warn:      #ffc043;
-      --text:      #d4d4d8;
-      --dim:       #71717a;
-      --header-h:  56px;
-      --sidebar-w: 320px;
-      --font-mono: 'Geist Mono', 'Fira Code', monospace;
-      --font-ui:   'Syne', sans-serif;
-    }
+/* ── Auth overlay ── */
+#auth-overlay{
+  position:fixed;inset:0;z-index:9999;
+  background:rgba(6,6,10,0.97);
+  display:flex;align-items:center;justify-content:center;
+}
+#auth-overlay.hidden{display:none}
+.auth-box{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:36px 32px;
+  width:100%;max-width:400px;
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+  box-shadow:0 0 80px rgba(0,0,0,0.8);
+}
+.auth-box .auth-logo{width:56px;height:56px;margin-bottom:4px}
+.auth-box h2{font-size:18px;font-weight:600;letter-spacing:-0.3px}
+.auth-box p{font-size:12px;color:var(--dim);text-align:center;line-height:1.6}
+#auth-input{
+  width:100%;
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-family:var(--mono);font-size:13px;
+  padding:10px 14px;outline:none;
+  transition:border-color .2s;
+}
+#auth-input:focus{border-color:rgba(232,69,69,0.5)}
+#auth-btn{
+  width:100%;
+  background:var(--accent);color:#fff;border:none;
+  border-radius:8px;padding:11px;
+  font-family:var(--font);font-size:14px;font-weight:600;
+  cursor:pointer;transition:opacity .15s;
+}
+#auth-btn:hover{opacity:0.85}
+#auth-error{
+  font-size:12px;color:var(--accent);display:none;
+}
 
-    html, body { height: 100%; overflow: hidden; }
+/* ── AI Banner ── */
+#ai-banner{
+  background:rgba(232,69,69,0.08);
+  border-bottom:1px solid rgba(232,69,69,0.2);
+  padding:8px 20px;
+  display:flex;align-items:center;gap:10px;
+  font-size:12px;color:rgba(228,228,237,0.7);
+  position:relative;
+}
+#ai-banner span{flex:1}
+#ai-banner code{
+  background:rgba(255,255,255,0.08);
+  border-radius:4px;padding:1px 6px;
+  font-family:var(--mono);font-size:11px;color:var(--warn);
+}
+#ai-banner button{
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);font-size:16px;line-height:1;padding:2px 6px;
+  border-radius:4px;transition:color .15s;
+}
+#ai-banner button:hover{color:var(--text)}
 
-    body {
-      font-family: var(--font-ui);
-      background: var(--bg);
-      color: var(--text);
-      display: flex;
-      flex-direction: column;
-    }
+/* ── Header ── */
+header{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 24px;
+  border-bottom:1px solid var(--border);
+  background:var(--panel);
+}
+.logo-wrap{width:36px;height:36px;flex-shrink:0}
+.logo-wrap svg{width:100%;height:100%}
+header h1{font-size:18px;font-weight:600;letter-spacing:-0.3px;flex:1}
+header h1 span{color:var(--accent)}
+#terminal-toggle{
+  background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--dim);
+  cursor:pointer;
+  padding:7px 10px;
+  display:flex;align-items:center;gap:6px;
+  font-size:12px;font-family:var(--font);
+  transition:all .15s;
+}
+#terminal-toggle:hover{background:rgba(255,255,255,0.09);color:var(--text)}
+#terminal-toggle.active{border-color:rgba(61,255,160,0.3);color:var(--ok)}
 
-    /* ── Background grid ── */
-    body::before {
-      content: '';
-      position: fixed; inset: 0; z-index: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
-      background-size: 40px 40px;
-      pointer-events: none;
-    }
+/* ── Main grid ── */
+main{
+  flex:1;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+  padding:20px 24px;
+  align-items:start;
+}
+@media(max-width:700px){main{grid-template-columns:1fr}}
 
-    /* ── Header ── */
-    header {
-      height: var(--header-h);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 1.5rem;
-      border-bottom: 1px solid var(--border);
-      background: rgba(13,13,18,0.9);
-      backdrop-filter: blur(12px);
-      position: relative; z-index: 100;
-      flex-shrink: 0;
-    }
+/* ── Cards ── */
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+}
+.card-header{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 18px;
+  border-bottom:1px solid var(--border);
+}
+.card-header h2{font-size:13px;font-weight:600;letter-spacing:0.2px;flex:1}
+.card-body{padding:18px}
 
-    .logo {
-      font-family: var(--font-ui);
-      font-size: 1.1rem;
-      font-weight: 800;
-      letter-spacing: -.02em;
-      display: flex; align-items: center; gap: .5rem;
-    }
-    .logo .claw { color: var(--accent); }
+/* ── Status card ── */
+#status-logo{
+  display:flex;justify-content:center;margin-bottom:16px;
+}
+#status-logo svg{width:56px;height:56px;opacity:0.9}
+#status-logo svg.pulse .claw-body{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:0.9}50%{opacity:0.6}}
 
-    .header-right { display: flex; align-items: center; gap: 1rem; }
+.status-state{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-bottom:16px;font-size:13px;
+}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.dot.err{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.dot.warn{background:var(--warn);box-shadow:0 0 6px var(--warn)}
+.dot.dim{background:var(--dim)}
+.dot.spin{animation:spin-dot 1s linear infinite}
+@keyframes spin-dot{to{transform:rotate(360deg)}}
 
-    .badge {
-      display: flex; align-items: center; gap: .4rem;
-      font-family: var(--font-mono);
-      font-size: .7rem; font-weight: 600; letter-spacing: .06em;
-      text-transform: uppercase;
-      padding: .3rem .75rem; border-radius: 20px;
-    }
-    .badge.ok    { background: rgba(62,255,160,.1); color: var(--ok);   border: 1px solid rgba(62,255,160,.2); }
-    .badge.error { background: rgba(232,69,69,.1);  color: var(--accent); border: 1px solid rgba(232,69,69,.2); }
+.status-table{width:100%;border-collapse:collapse;font-size:12px}
+.status-table tr{border-bottom:1px solid var(--border)}
+.status-table tr:last-child{border-bottom:none}
+.status-table td{padding:7px 4px}
+.status-table td:first-child{color:var(--dim);width:45%;padding-right:12px}
+.status-table td:last-child{font-family:var(--mono);font-size:11px}
 
-    .dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: currentColor;
-      animation: blink 2s ease-in-out infinite;
-    }
-    @keyframes blink {
-      0%,100% { opacity: .5; transform: scale(.9); }
-      50%      { opacity: 1;  transform: scale(1.2); }
-    }
+.badge{
+  display:inline-block;padding:2px 8px;border-radius:20px;
+  font-size:11px;font-family:var(--mono);font-weight:500;
+}
+.badge.ok{background:rgba(61,255,160,0.12);color:var(--ok)}
+.badge.err{background:rgba(232,69,69,0.15);color:var(--accent)}
+.badge.warn{background:rgba(255,192,67,0.12);color:var(--warn)}
+.badge.dim{background:rgba(113,113,122,0.15);color:var(--dim)}
 
-    /* ── Layout ── */
-    .workspace {
-      flex: 1; display: flex; overflow: hidden;
-      position: relative; z-index: 1;
-    }
+.hint-box{
+  margin-top:14px;
+  background:rgba(232,69,69,0.07);
+  border:1px solid rgba(232,69,69,0.2);
+  border-radius:8px;padding:12px 14px;
+  font-size:12px;color:rgba(228,228,237,0.7);
+  line-height:1.6;
+}
+.hint-box code{font-family:var(--mono);color:var(--warn);font-size:11px}
 
-    /* ── Sidebar ── */
-    aside {
-      width: var(--sidebar-w);
-      flex-shrink: 0;
-      border-right: 1px solid var(--border);
-      background: var(--panel);
-      display: flex; flex-direction: column;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
+/* ── Session card ── */
+.info-row{
+  display:flex;flex-direction:column;gap:4px;
+  padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.info-row:last-of-type{border-bottom:none}
+.info-label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px}
+.info-value{
+  font-family:var(--mono);font-size:12px;color:var(--text);
+  word-break:break-all;display:flex;align-items:center;gap:8px;
+}
+.info-value a{color:var(--ok);text-decoration:none}
+.info-value a:hover{text-decoration:underline}
 
-    .sidebar-section {
-      padding: 1.25rem;
-      border-bottom: 1px solid var(--border);
-    }
+.masked{cursor:pointer;user-select:none;letter-spacing:2px;color:var(--dim)}
+.masked:hover{color:var(--text)}
 
-    .section-label {
-      font-size: .65rem; letter-spacing: .12em; text-transform: uppercase;
-      color: var(--dim); font-weight: 700; margin-bottom: 1rem;
-    }
+.copy-btn{
+  background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);
+  border-radius:6px;
+  color:var(--dim);cursor:pointer;
+  padding:3px 8px;font-size:11px;font-family:var(--font);
+  transition:all .15s;white-space:nowrap;flex-shrink:0;
+}
+.copy-btn:hover{background:rgba(255,255,255,0.09);color:var(--text)}
+.copy-btn.copied{border-color:rgba(61,255,160,0.4);color:var(--ok)}
 
-    /* Openclaw status summary */
-    #status-summary { font-family: var(--font-mono); font-size: .75rem; line-height: 1.8; }
-    .s-row { display: flex; gap: .5rem; }
-    .s-key { color: var(--dim); min-width: 90px; flex-shrink: 0; }
-    .s-val { color: var(--text); word-break: break-all; }
-    .s-val.ok   { color: var(--ok); }
-    .s-val.warn { color: var(--warn); }
-    .s-val.err  { color: var(--accent); }
+.action-btns{
+  display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;
+}
+.btn{
+  flex:1;min-width:120px;
+  padding:9px 14px;border-radius:8px;
+  font-size:12px;font-family:var(--font);font-weight:500;
+  cursor:pointer;border:1px solid var(--border);
+  transition:all .15s;
+}
+.btn-danger{background:rgba(232,69,69,0.12);color:var(--accent);border-color:rgba(232,69,69,0.25)}
+.btn-danger:hover{background:rgba(232,69,69,0.22)}
+.btn-primary{background:rgba(61,255,160,0.1);color:var(--ok);border-color:rgba(61,255,160,0.25)}
+.btn-primary:hover{background:rgba(61,255,160,0.18)}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
 
-    /* Sidebar actions */
-    .btn {
-      display: block; width: 100%; border: none; cursor: pointer;
-      font-family: var(--font-ui); font-size: .85rem; font-weight: 700;
-      padding: .65rem 1rem; border-radius: 8px;
-      transition: opacity .15s, transform .15s;
-      text-align: left; margin-bottom: .5rem;
-    }
-    .btn:hover  { opacity: .85; transform: translateX(2px); }
-    .btn:active { transform: scale(.98); }
-    .btn.primary { background: var(--accent); color: white; }
-    .btn.ghost   { background: rgba(255,255,255,.05); color: var(--text); border: 1px solid var(--border); }
+/* ── Terminal panel ── */
+#terminal-panel{
+  position:fixed;inset:0;z-index:1000;
+  background:rgba(6,6,10,0.85);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  display:none;
+  flex-direction:column;
+}
+#terminal-panel.open{display:flex}
+#terminal-panel-inner{
+  position:absolute;
+  inset:60px 40px 40px 40px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  box-shadow:0 24px 80px rgba(0,0,0,0.7);
+}
+#terminal-header{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  background:rgba(255,255,255,0.03);
+  flex-shrink:0;
+}
+#terminal-header span{
+  font-size:12px;color:var(--dim);flex:1;font-family:var(--mono);
+}
+#terminal-close{
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);font-size:18px;line-height:1;padding:2px 6px;
+  border-radius:4px;transition:color .15s;
+}
+#terminal-close:hover{color:var(--accent)}
+#term-output{
+  flex:1;overflow-y:auto;
+  padding:12px 16px;
+  font-family:var(--mono);font-size:12px;line-height:1.6;
+  color:#c9d1d9;
+}#term-output::-webkit-scrollbar{width:4px}
+#term-output::-webkit-scrollbar-track{background:transparent}
+#term-output::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+.term-line{white-space:pre-wrap;word-break:break-all}
+.term-line.cmd{color:var(--ok)}
+.term-line.err{color:var(--accent)}
+.term-line.dim{color:var(--dim)}
+#term-input-row{
+  display:flex;align-items:center;gap:0;
+  border-top:1px solid var(--border);
+  padding:0 16px;
+  background:rgba(0,0,0,0.2);
+}
+#term-prompt{
+  color:var(--ok);font-family:var(--mono);font-size:12px;
+  padding:10px 8px 10px 0;white-space:nowrap;
+}
+#term-input{
+  flex:1;background:none;border:none;outline:none;
+  color:var(--text);font-family:var(--mono);font-size:12px;
+  padding:10px 0;caret-color:var(--ok);
+}
+#term-run{
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);font-size:18px;padding:6px;
+  transition:color .15s;
+}
+#term-run:hover{color:var(--ok)}
 
-    /* Quick commands */
-    .qcmd {
-      font-family: var(--font-mono); font-size: .75rem;
-      padding: .5rem .75rem; border-radius: 6px;
-      background: rgba(255,255,255,.03); border: 1px solid var(--border);
-      color: var(--dim); cursor: pointer; margin-bottom: .4rem;
-      display: flex; align-items: center; gap: .5rem;
-      transition: background .15s, color .15s, border-color .15s;
-    }
-    .qcmd:hover { background: rgba(232,69,69,.08); border-color: rgba(232,69,69,.3); color: var(--text); }
-    .qcmd .arrow { margin-left: auto; opacity: .4; }
-
-    /* ── Terminal pane ── */
-    #terminal-pane {
-      flex: 1; display: flex; flex-direction: column; overflow: hidden;
-    }
-
-    #terminal-output {
-      flex: 1; overflow-y: auto; overflow-x: hidden;
-      padding: 1.25rem 1.5rem;
-      font-family: var(--font-mono); font-size: .82rem;
-      line-height: 1.55;
-      color: #c0c0cc;
-    }
-
-    #terminal-output::-webkit-scrollbar       { width: 5px; }
-    #terminal-output::-webkit-scrollbar-track { background: transparent; }
-    #terminal-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-    .tl { display: block; margin-bottom: .1rem; animation: tlIn .15s ease; }
-    @keyframes tlIn { from { opacity: 0; transform: translateY(3px); } }
-    .tl.cmd  { color: var(--accent); }
-    .tl.ok   { color: #a8ffcf; }
-    .tl.err  { color: #ff9191; }
-    .tl.info { color: var(--accent2); }
-    .tl.dim  { color: var(--dim); }
-
-    /* ── Input bar ── */
-    .input-bar {
-      display: flex; align-items: center; gap: .75rem;
-      padding: .85rem 1.5rem;
-      border-top: 1px solid var(--border);
-      background: rgba(13,13,18,.95);
-      flex-shrink: 0;
-    }
-
-    .input-bar .prompt-icon {
-      color: var(--accent); font-family: var(--font-mono);
-      font-size: .9rem; font-weight: 600; user-select: none;
-      flex-shrink: 0;
-    }
-
-    #cmd-input {
-      flex: 1; background: transparent; border: none; outline: none;
-      color: var(--text); font-family: var(--font-mono); font-size: .85rem;
-      caret-color: var(--accent);
-    }
-    #cmd-input::placeholder { color: var(--dim); }
-
-    .spinner {
-      width: 14px; height: 14px;
-      border: 2px solid rgba(232,69,69,.3);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-      flex-shrink: 0; display: none;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .send-btn {
-      background: var(--accent); color: white; border: none; cursor: pointer;
-      font-family: var(--font-ui); font-weight: 700; font-size: .8rem;
-      padding: .4rem .85rem; border-radius: 6px;
-      transition: opacity .15s; flex-shrink: 0;
-    }
-    .send-btn:hover { opacity: .8; }
-
-    /* ── Auth overlay ── */
-    #auth-overlay {
-      position: fixed; inset: 0; z-index: 9999;
-      background: var(--bg);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 1.5rem;
-      font-family: var(--font-ui);
-    }
-
-    #auth-overlay.hidden { display: none; }
-
-    #auth-overlay h2 {
-      font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em;
-    }
-
-    #auth-overlay p { color: var(--dim); font-size: .9rem; max-width: 340px; text-align: center; }
-
-    #token-input {
-      font-family: var(--font-mono); font-size: .9rem;
-      background: var(--panel); border: 1px solid var(--border);
-      color: var(--text); padding: .75rem 1rem; border-radius: 10px;
-      width: 340px; outline: none;
-      transition: border-color .2s;
-    }
-    #token-input:focus { border-color: var(--accent); }
-
-    #connect-btn {
-      width: 340px;
-      background: var(--accent); color: white; border: none;
-      font-family: var(--font-ui); font-weight: 800; font-size: 1rem;
-      padding: .8rem 2rem; border-radius: 10px; cursor: pointer;
-      transition: opacity .15s, transform .15s;
-    }
-    #connect-btn:hover  { opacity: .85; transform: translateY(-2px); }
-    #connect-btn:active { transform: scale(.97); }
-
-    #auth-error { color: var(--accent); font-size: .8rem; display: none; }
-
-    /* ── Responsive ── */
-    @media (max-width: 720px) {
-      aside { display: none; }
-      .logo span.full { display: none; }
-    }
-  </style>
+/* ── Loading skeleton ── */
+.skel{
+  background:linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.04) 75%);
+  background-size:200% 100%;
+  animation:skel 1.4s ease infinite;
+  border-radius:4px;height:12px;
+}
+@keyframes skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
 </head>
 <body>
 
-<!-- Auth overlay (shown when no token in URL) -->
+<!-- Auth overlay -->
 <div id="auth-overlay">
-  <div class="logo"><span class="claw">🦞</span> OpenClaw Doctor</div>
-  <h2>Connect Securely</h2>
-  <p>Enter the admin token shown in your terminal to access the remote diagnostic panel.</p>
-  <input id="token-input" type="password" placeholder="Paste admin token…" autocomplete="off" />
-  <p id="auth-error">❌ Invalid token — access denied.</p>
-  <button id="connect-btn">Connect →</button>
+  <div class="auth-box">
+    <svg class="auth-logo" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M60 10 C30 10 15 35 15 55 C15 75 30 95 45 100 L45 110 L55 110 L55 100 C55 100 60 102 65 100 L65 110 L75 110 L75 100 C90 95 105 75 105 55 C105 35 90 10 60 10Z" fill="url(#lg-a)"/>
+      <path d="M20 45 C5 40 0 50 5 60 C10 70 20 65 25 55 C28 48 25 45 20 45Z" fill="url(#lg-a)"/>
+      <path d="M100 45 C115 40 120 50 115 60 C110 70 100 65 95 55 C92 48 95 45 100 45Z" fill="url(#lg-a)"/>
+      <path d="M45 15 Q35 5 30 8" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/>
+      <path d="M75 15 Q85 5 90 8" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="45" cy="35" r="6" fill="#050810"/><circle cx="75" cy="35" r="6" fill="#050810"/>
+      <circle cx="46" cy="34" r="2" fill="#00e5cc"/><circle cx="76" cy="34" r="2" fill="#00e5cc"/>
+      <defs><linearGradient id="lg-a" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ff6b6b"/><stop offset="100%" stop-color="#e84545"/>
+      </linearGradient></defs>
+    </svg>
+    <h2>OpenClaw Doctor</h2>
+    <p>Enter the admin token shown in your terminal to access the remote diagnostic panel.</p>
+    <input id="auth-input" type="password" placeholder="Paste token here…" autocomplete="off" />
+    <span id="auth-error">Invalid token — access denied.</span>
+    <button id="auth-btn" onclick="tryConnect()">Connect →</button>
+  </div>
 </div>
 
-<!-- App shell -->
+<!-- AI Agent Banner -->
+<div id="ai-banner">
+  <span>🤖 AI Agent? <code>GET</code> this URL with <code>?token=TOKEN</code> to receive the operation guide</span>
+  <button onclick="document.getElementById('ai-banner').remove()" title="Dismiss">✕</button>
+</div>
+
+<!-- Header -->
 <header>
-  <div class="logo">
-    <span class="claw">🦞</span>
-    <span class="full">OpenClaw Doctor</span>
+  <div class="logo-wrap">
+    <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M60 10 C30 10 15 35 15 55 C15 75 30 95 45 100 L45 110 L55 110 L55 100 C55 100 60 102 65 100 L65 110 L75 110 L75 100 C90 95 105 75 105 55 C105 35 90 10 60 10Z" fill="url(#lg-h)" class="claw-body"/>
+      <path d="M20 45 C5 40 0 50 5 60 C10 70 20 65 25 55 C28 48 25 45 20 45Z" fill="url(#lg-h)"/>
+      <path d="M100 45 C115 40 120 50 115 60 C110 70 100 65 95 55 C92 48 95 45 100 45Z" fill="url(#lg-h)"/>
+      <path d="M45 15 Q35 5 30 8" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/>
+      <path d="M75 15 Q85 5 90 8" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="45" cy="35" r="6" fill="#050810"/>
+      <circle cx="75" cy="35" r="6" fill="#050810"/>
+      <circle cx="46" cy="34" r="2" fill="#00e5cc"/>
+      <circle cx="76" cy="34" r="2" fill="#00e5cc"/>
+      <defs>
+        <linearGradient id="lg-h" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#ff6b6b"/>
+          <stop offset="100%" stop-color="#e84545"/>
+        </linearGradient>
+      </defs>
+    </svg>
   </div>
-  <div class="header-right">
-    <div class="badge ok" id="conn-badge">
-      <div class="dot"></div>
-      CONNECTED
-    </div>
-  </div>
+  <h1>OpenClaw <span>Doctor</span></h1>
+  <button id="terminal-toggle" onclick="toggleTerminal()" title="Toggle terminal">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+    </svg>
+    Terminal
+  </button>
 </header>
 
-<div class="workspace">
-  <!-- Sidebar -->
-  <aside>
-    <div class="sidebar-section">
-      <div class="section-label">OpenClaw Status</div>
-      <div id="status-summary">
-        <div class="s-row"><span class="s-key">loading…</span></div>
+<!-- Main -->
+<main>
+  <!-- LEFT: Status card -->
+  <div class="card" id="status-card">
+    <div class="card-header">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      <h2>OpenClaw Status</h2>
+      <button class="copy-btn" onclick="refreshStatus()" id="refresh-btn" style="margin-left:auto">↻ Refresh</button>
+    </div>
+    <div class="card-body" id="status-body">
+      <!-- Logo -->
+      <div id="status-logo">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" id="status-svg" class="pulse">
+          <path d="M60 10 C30 10 15 35 15 55 C15 75 30 95 45 100 L45 110 L55 110 L55 100 C55 100 60 102 65 100 L65 110 L75 110 L75 100 C90 95 105 75 105 55 C105 35 90 10 60 10Z" fill="url(#lg-s)" class="claw-body"/>
+          <path d="M20 45 C5 40 0 50 5 60 C10 70 20 65 25 55 C28 48 25 45 20 45Z" fill="url(#lg-s)"/>
+          <path d="M100 45 C115 40 120 50 115 60 C110 70 100 65 95 55 C92 48 95 45 100 45Z" fill="url(#lg-s)"/>
+          <path d="M45 15 Q35 5 30 8" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/>
+          <path d="M75 15 Q85 5 90 8" stroke="#ff6b6b" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="45" cy="35" r="6" fill="#050810"/>
+          <circle cx="75" cy="35" r="6" fill="#050810"/>
+          <circle cx="46" cy="34" r="2" fill="#00e5cc"/>
+          <circle cx="76" cy="34" r="2" fill="#00e5cc"/>
+          <defs>
+            <linearGradient id="lg-s" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff6b6b"/>
+              <stop offset="100%" stop-color="#e84545"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <!-- State indicator -->
+      <div class="status-state" id="status-state">
+        <div class="dot dim spin"></div>
+        <span>Checking status…</span>
+      </div>
+      <!-- Table -->
+      <div id="status-table-wrap"></div>
+      <!-- Hint -->
+      <div id="status-hint"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Session card -->
+  <div class="card" id="session-card">
+    <div class="card-header">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <h2>Session Info</h2>
+    </div>
+    <div class="card-body" id="session-body">
+      <div id="session-loading">
+        <div class="skel" style="width:60%;margin-bottom:10px"></div>
+        <div class="skel" style="width:80%;margin-bottom:10px"></div>
+        <div class="skel" style="width:70%"></div>
+      </div>
+      <div id="session-content" style="display:none">
+        <div class="info-row">
+          <div class="info-label">Public URL</div>
+          <div class="info-value"><a id="info-url" href="#" target="_blank" rel="noopener">—</a></div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Token</div>
+          <div class="info-value">
+            <span id="info-token" class="masked" onclick="toggleToken()" title="Click to reveal">••••••••••••••••</span>
+          </div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Full Link</div>
+          <div class="info-value">
+            <span id="info-fulllink" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)">—</span>
+            <button class="copy-btn" id="copy-link-btn" onclick="copyFullLink()">Copy</button>
+          </div>
+        </div>
+        <div class="action-btns">
+          <button class="btn btn-danger" onclick="stopService()">⏹ Stop Service</button>
+          <button class="btn btn-primary" onclick="restartService()">↺ Restart &amp; New Token</button>
+        </div>
+      </div>
+      <div id="session-error" style="display:none">
+        <div class="hint-box">Could not load session info. Make sure the token is valid.</div>
       </div>
     </div>
+  </div>
+</main>
 
-    <div class="sidebar-section">
-      <div class="section-label">Quick Commands</div>
-      <div class="qcmd" data-cmd="openclaw status"><span>openclaw status</span><span class="arrow">↗</span></div>
-      <div class="qcmd" data-cmd="openclaw status --deep"><span>openclaw status --deep</span><span class="arrow">↗</span></div>
-      <div class="qcmd" data-cmd="openclaw logs --follow --lines 50"><span>openclaw logs (50 lines)</span><span class="arrow">↗</span></div>
-      <div class="qcmd" data-cmd="openclaw security audit"><span>security audit</span><span class="arrow">↗</span></div>
-      <div class="qcmd" data-cmd="ls -la ~/"><span>ls ~/</span><span class="arrow">↗</span></div>
-      <div class="qcmd" data-cmd="ps aux | grep openclaw"><span>ps | grep openclaw</span><span class="arrow">↗</span></div>
+<!-- Terminal panel (fullscreen overlay) -->
+<div id="terminal-panel">
+  <div id="terminal-panel-inner">
+    <div id="terminal-header">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+      </svg>
+      <span>OpenClaw Doctor — Terminal</span>
+      <button id="terminal-close" onclick="toggleTerminal()" title="Close">✕</button>
     </div>
-
-    <div class="sidebar-section">
-      <div class="section-label">Actions</div>
-      <button class="btn primary" onclick="refreshStatus()">🔄 Refresh Status</button>
-      <button class="btn ghost" onclick="clearTerminal()">🗑 Clear Terminal</button>
+    <div id="term-output">
+      <div class="term-line dim">OpenClaw Doctor terminal — type a command and press Enter</div>
     </div>
-
-    <div class="sidebar-section">
-      <div class="section-label">Session Info</div>
-      <div id="session-info" style="font-family:var(--font-mono);font-size:.7rem;color:var(--dim);line-height:1.9;">
-        Loading…
-      </div>
-    </div>
-  </aside>
-
-  <!-- Terminal pane -->
-  <div id="terminal-pane">
-    <div id="terminal-output">
-      <span class="tl info">🦞 OpenClaw Doctor — Remote Diagnostic Terminal</span>
-      <span class="tl info">   Authorized via Cloudflare Tunnel. All commands run on the remote host.</span>
-      <span class="tl dim">   Type a shell command below, or pick one from the sidebar.</span>
-      <span class="tl dim"> </span>
-    </div>
-    <div class="input-bar">
-      <span class="prompt-icon">$</span>
-      <input id="cmd-input" type="text" placeholder="Enter shell command and press Enter…" autocomplete="off" spellcheck="false" />
-      <div class="spinner" id="spinner"></div>
-      <button class="send-btn" onclick="runCmd()">Run</button>
+    <div id="term-input-row">
+      <span id="term-prompt">$ </span>
+      <input id="term-input" type="text" autocomplete="off" spellcheck="false" placeholder="enter command…" onkeydown="termKeydown(event)"/>
+      <button id="term-run" onclick="termRun()" title="Run">▶</button>
     </div>
   </div>
 </div>
 
+
 <script>
-  // ── State ────────────────────────────────────────────────────────────────────
-  let TOKEN = new URLSearchParams(location.search).get('token') || '';
-  const output = document.getElementById('terminal-output');
-  const input  = document.getElementById('cmd-input');
-  const spinner = document.getElementById('spinner');
-  const overlay = document.getElementById('auth-overlay');
-  const historyBuf = [];
-  let histIdx = -1;
+// ── Token resolution ──────────────────────────────────────────────────────────
+function getToken() {
+  const p = new URLSearchParams(location.search).get('token');
+  if (p) { sessionStorage.setItem('ocd_token', p); return p; }
+  return sessionStorage.getItem('ocd_token') || '';
+}
 
-  // ── Auth ─────────────────────────────────────────────────────────────────────
-  function hasToken() { return !!TOKEN; }
+let TOKEN = getToken();
+let sessionInfo = null;
+let tokenRevealed = false;
+let cmdHistory = [];
+let historyIdx = -1;
 
-  function showOverlay(show) {
-    overlay.classList.toggle('hidden', !show);
+// ── Auth overlay ──────────────────────────────────────────────────────────────
+async function tryConnect() {
+  const input = document.getElementById('auth-input');
+  const errEl = document.getElementById('auth-error');
+  const btn   = document.getElementById('auth-btn');
+  const t = input.value.trim();
+  if (!t) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+  errEl.style.display = 'none';
+
+  try {
+    // Verify token by calling /info
+    const sep = '?';
+    const res = await fetch(`/info${sep}token=${encodeURIComponent(t)}`);
+    if (!res.ok) throw new Error('invalid');
+    TOKEN = t;
+    sessionStorage.setItem('ocd_token', TOKEN);
+    const u = new URL(location.href);
+    u.searchParams.set('token', TOKEN);
+    history.replaceState(null, '', u.toString());
+    document.getElementById('auth-overlay').classList.add('hidden');
+    boot();
+  } catch (_) {
+    errEl.style.display = 'block';
+    input.value = '';
+    input.focus();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect →';
   }
+}
 
-  if (hasToken()) {
-    showOverlay(false);
+document.addEventListener('DOMContentLoaded', () => {
+  const authInput = document.getElementById('auth-input');
+  authInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryConnect(); });
+
+  if (TOKEN) {
+    document.getElementById('auth-overlay').classList.add('hidden');
     boot();
   } else {
-    showOverlay(true);
+    authInput.focus();
   }
+});
 
-  document.getElementById('connect-btn').addEventListener('click', tryConnect);
-  document.getElementById('token-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') tryConnect();
-  });
+function boot() {
+  refreshStatus();
+  loadSessionInfo();
+}
 
-  async function tryConnect() {
-    TOKEN = document.getElementById('token-input').value.trim();
-    const errEl = document.getElementById('auth-error');
-    errEl.style.display = 'none';
-    try {
-      const r = await apiFetch('/api/ping');
-      if (r.app === 'openclaw-doctor') {
-        showOverlay(false);
-        // save token to URL for refresh
-        const url = new URL(location.href);
-        url.searchParams.set('token', TOKEN);
-        history.replaceState({}, '', url.toString());
-        boot();
-      } else {
-        throw new Error('bad response');
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `${path}${sep}token=${encodeURIComponent(TOKEN)}`;
+  const res = await fetch(url, opts);
+  if (res.status === 401) {
+    // Token invalid — clear and show auth overlay
+    TOKEN = '';
+    sessionStorage.removeItem('ocd_token');
+    const overlay = document.getElementById('auth-overlay');
+    const errEl   = document.getElementById('auth-error');
+    const input   = document.getElementById('auth-input');
+    errEl.style.display = 'block';
+    overlay.classList.remove('hidden');
+    input.value = '';
+    input.focus();
+    throw new Error('HTTP 401');
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ── Status parsing ────────────────────────────────────────────────────────────
+function parseStatusTable(stdout) {
+  const rows = [];
+  const lines = stdout.split('\n');
+  for (const line of lines) {
+    // Match lines like │ key │ value │
+    const m = line.match(/[│|]\s*([^│|]+?)\s*[│|]\s*([^│|]+?)\s*[│|]/);
+    if (m) {
+      const key = m[1].trim();
+      const val = m[2].trim();
+      if (key && val && key.toLowerCase() !== 'key' && key.toLowerCase() !== 'field') {
+        rows.push({ key, val });
       }
-    } catch (e) {
-      TOKEN = '';
-      errEl.style.display = 'block';
     }
   }
+  return rows;
+}
 
-  // ── API helpers ───────────────────────────────────────────────────────────────
-  async function apiFetch(path, opts = {}) {
-    const headers = { 'x-doctor-token': TOKEN, ...(opts.headers || {}) };
-    const r = await fetch(path, { ...opts, headers });
-    if (r.status === 401) throw new Error('Unauthorized');
-    return r.json();
+function valueBadge(val) {
+  const v = val.toLowerCase();
+  if (v === 'running' || v === 'active' || v === 'ok' || v === 'yes' || v === 'true') {
+    return `<span class="badge ok">${val}</span>`;
+  }
+  if (v === 'stopped' || v === 'inactive' || v === 'no' || v === 'false' || v === 'off') {
+    return `<span class="badge dim">${val}</span>`;
+  }
+  if (v.includes('error') || v.includes('fail') || v.includes('not installed') || v === 'none') {
+    return `<span class="badge err">${val}</span>`;
+  }
+  if (v.includes('warn') || v.includes('pending')) {
+    return `<span class="badge warn">${val}</span>`;
+  }
+  return `<span style="color:var(--text)">${escHtml(val)}</span>`;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Status card ───────────────────────────────────────────────────────────────
+async function refreshStatus() {
+  const stateEl = document.getElementById('status-state');
+  const tableWrap = document.getElementById('status-table-wrap');
+  const hintEl = document.getElementById('status-hint');
+  const svgEl = document.getElementById('status-svg');
+
+  stateEl.innerHTML = '<div class="dot dim spin"></div><span>Checking status…</span>';
+  tableWrap.innerHTML = '';
+  hintEl.innerHTML = '';
+  svgEl.classList.add('pulse');
+
+  if (!TOKEN) {
+    stateEl.innerHTML = '<div class="dot err"></div><span>No token — add <code style="font-family:var(--mono);color:var(--warn)">?token=TOKEN</code> to the URL</span>';
+    svgEl.classList.remove('pulse');
+    return;
   }
 
-  async function execCmd(cmd) {
-    return apiFetch('/api/exec', {
+  try {
+    const data = await apiFetch('/status');
+
+    svgEl.classList.remove('pulse');
+
+    // Not installed
+    if (!data.installed || (data.stderr && (data.stderr.includes('command not found') || data.stderr.includes('not found')))) {
+      stateEl.innerHTML = '<div class="dot err"></div><span>OpenClaw not installed</span>';
+      hintEl.innerHTML = `<div class="hint-box">
+        OpenClaw is not installed on this machine.<br>
+        Install it with:<br>
+        <code>curl -fsSL https://openclaw.dev/install.sh | bash</code>
+      </div>`;
+      return;
+    }
+
+    // Parse table rows
+    const rows = parseStatusTable(data.stdout);
+
+    // Determine overall state from rows
+    const gatewayRow = rows.find(r => r.key.toLowerCase().includes('gateway service') || r.key.toLowerCase().includes('gateway'));
+    const agentsRow  = rows.find(r => r.key.toLowerCase().includes('agent'));
+    const isRunning  = gatewayRow && (gatewayRow.val.toLowerCase() === 'running' || gatewayRow.val.toLowerCase() === 'active');
+
+    if (data.code !== 0 && rows.length === 0) {
+      stateEl.innerHTML = '<div class="dot err"></div><span>OpenClaw error — check terminal</span>';
+      hintEl.innerHTML = `<div class="hint-box">
+        OpenClaw returned an error (code ${data.code}).<br>
+        Open the terminal to investigate: <code>openclaw status</code>
+      </div>`;
+      return;
+    }
+
+    if (isRunning) {
+      stateEl.innerHTML = '<div class="dot ok"></div><span style="color:var(--ok)">Running</span>';
+    } else if (rows.length > 0) {
+      stateEl.innerHTML = '<div class="dot warn"></div><span style="color:var(--warn)">Degraded / Partial</span>';
+    } else {
+      stateEl.innerHTML = '<div class="dot dim"></div><span>Status unknown</span>';
+    }
+
+    if (rows.length > 0) {
+      // Filter to key fields
+      const priority = ['os','gateway','gateway service','agents','sessions','channel','version','uptime','status'];
+      const sorted = [...rows].sort((a, b) => {
+        const ai = priority.findIndex(p => a.key.toLowerCase().includes(p));
+        const bi = priority.findIndex(p => b.key.toLowerCase().includes(p));
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+
+      let html = '<table class="status-table">';
+      for (const r of sorted) {
+        html += `<tr><td>${escHtml(r.key)}</td><td>${valueBadge(r.val)}</td></tr>`;
+      }
+      html += '</table>';
+      tableWrap.innerHTML = html;
+    } else if (data.stdout) {
+      // Fallback: show raw stdout in a code block
+      tableWrap.innerHTML = `<pre style="font-family:var(--mono);font-size:11px;color:var(--dim);white-space:pre-wrap;word-break:break-all;margin-top:8px">${escHtml(data.stdout.slice(0, 800))}</pre>`;
+    }
+
+  } catch (err) {
+    svgEl.classList.remove('pulse');
+    stateEl.innerHTML = '<div class="dot err"></div><span>Failed to fetch status</span>';
+    hintEl.innerHTML = `<div class="hint-box">Error: ${escHtml(err.message)}</div>`;
+  }
+}
+
+// ── Session card ──────────────────────────────────────────────────────────────
+async function loadSessionInfo() {
+  if (!TOKEN) {
+    document.getElementById('session-loading').style.display = 'none';
+    document.getElementById('session-error').style.display = 'block';
+    return;
+  }
+  try {
+    const data = await apiFetch('/info');
+    sessionInfo = data;
+
+    const urlEl = document.getElementById('info-url');
+    const tokenEl = document.getElementById('info-token');
+    const fullLinkEl = document.getElementById('info-fulllink');
+
+    const tunnelUrl = data.tunnelUrl || '';
+    const fullLink = tunnelUrl ? `${tunnelUrl}/?token=${data.token}` : '';
+
+    urlEl.textContent = tunnelUrl || '(tunnel not active)';
+    urlEl.href = tunnelUrl || '#';
+
+    tokenEl.dataset.real = data.token;
+    tokenEl.textContent = '••••••••••••••••';
+    tokenRevealed = false;
+
+    fullLinkEl.textContent = fullLink || '(unavailable)';
+    fullLinkEl.title = fullLink;
+
+    document.getElementById('session-loading').style.display = 'none';
+    document.getElementById('session-content').style.display = 'block';
+  } catch (err) {
+    document.getElementById('session-loading').style.display = 'none';
+    document.getElementById('session-error').style.display = 'block';
+  }
+}
+
+function toggleToken() {
+  const el = document.getElementById('info-token');
+  tokenRevealed = !tokenRevealed;
+  el.textContent = tokenRevealed ? (el.dataset.real || TOKEN) : '••••••••••••••••';
+  el.classList.toggle('masked', !tokenRevealed);
+}
+
+function copyFullLink() {
+  const el = document.getElementById('info-fulllink');
+  const text = el.textContent;
+  if (!text || text === '(unavailable)') return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-link-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+async function stopService() {
+  if (!confirm('Stop the OpenClaw Doctor service?')) return;
+  try {
+    await apiFetch('/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({cmd:'pkill -f openclaw-doctor || true'}) });
+    termPrint('Service stop requested.', 'dim');
+  } catch (e) {
+    termPrint('Error: ' + e.message, 'err');
+  }
+}
+
+async function restartService() {
+  if (!confirm('Restart and generate a new token? The current token will be invalidated.')) return;
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Restarting…';
+  try {
+    const data = await apiFetch('/restart', { method: 'POST' });
+    if (data.ok && data.newToken) {
+      TOKEN = data.newToken;
+      sessionStorage.setItem('ocd_token', TOKEN);
+      // Update URL without reload
+      const u = new URL(location.href);
+      u.searchParams.set('token', TOKEN);
+      history.replaceState(null, '', u.toString());
+      await loadSessionInfo();
+      await refreshStatus();
+      termPrint('Restarted. New token active.', 'dim');
+    }
+  } catch (e) {
+    termPrint('Restart error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↺ Restart & New Token';
+  }
+}
+
+// ── Terminal ──────────────────────────────────────────────────────────────────
+function toggleTerminal() {
+  const panel = document.getElementById('terminal-panel');
+  const btn = document.getElementById('terminal-toggle');
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('active', open);
+  if (open) document.getElementById('term-input').focus();
+}
+
+// Close terminal on ESC, close auth overlay on ESC only if token exists
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const panel = document.getElementById('terminal-panel');
+    if (panel.classList.contains('open')) toggleTerminal();
+  }
+});
+
+function termPrint(text, cls = '') {
+  const out = document.getElementById('term-output');
+  const line = document.createElement('div');
+  line.className = 'term-line' + (cls ? ' ' + cls : '');
+  line.textContent = text;
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+}
+
+function termKeydown(e) {
+  if (e.key === 'Enter') { termRun(); return; }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (historyIdx < cmdHistory.length - 1) {
+      historyIdx++;
+      document.getElementById('term-input').value = cmdHistory[cmdHistory.length - 1 - historyIdx];
+    }
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIdx > 0) {
+      historyIdx--;
+      document.getElementById('term-input').value = cmdHistory[cmdHistory.length - 1 - historyIdx];
+    } else {
+      historyIdx = -1;
+      document.getElementById('term-input').value = '';
+    }
+  }
+}
+
+async function termRun() {
+  const input = document.getElementById('term-input');
+  const cmd = input.value.trim();
+  if (!cmd) return;
+
+  cmdHistory.push(cmd);
+  historyIdx = -1;
+  input.value = '';
+
+  termPrint('$ ' + cmd, 'cmd');
+
+  if (!TOKEN) {
+    termPrint('No token set. Add ?token=TOKEN to the URL.', 'err');
+    return;
+  }
+
+  try {
+    const data = await apiFetch('/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cmd })
     });
+    if (data.stdout) termPrint(data.stdout.replace(/\n$/, ''));
+    if (data.stderr) termPrint(data.stderr.replace(/\n$/, ''), 'err');
+    if (data.code !== 0) termPrint(`[exit ${data.code}]`, 'dim');
+  } catch (err) {
+    termPrint('Error: ' + err.message, 'err');
   }
+}
 
-  // ── Terminal output ───────────────────────────────────────────────────────────
-  function print(text, cls = '') {
-    const lines = String(text).split('\n');
-    lines.forEach(line => {
-      const el = document.createElement('span');
-      el.className = 'tl ' + cls;
-      el.textContent = line;
-      output.appendChild(el);
-    });
-    output.scrollTop = output.scrollHeight;
-  }
-
-  function clearTerminal() {
-    output.innerHTML = '';
-    print('Terminal cleared.', 'dim');
-  }
-
-  // ── Run command ───────────────────────────────────────────────────────────────
-  async function runCmd() {
-    const cmd = input.value.trim();
-    if (!cmd) return;
-
-    input.value = '';
-    historyBuf.unshift(cmd);
-    histIdx = -1;
-
-    print('$ ' + cmd, 'cmd');
-    spinner.style.display = 'block';
-    input.disabled = true;
-
-    try {
-      const res = await execCmd(cmd);
-      if (res.stdout) print(res.stdout.trimEnd(), res.code === 0 ? '' : 'err');
-      if (res.stderr) print(res.stderr.trimEnd(), 'err');
-      if (!res.stdout && !res.stderr) print('(no output)', 'dim');
-    } catch (err) {
-      print('Connection error: ' + err.message, 'err');
-    }
-
-    spinner.style.display = 'none';
-    input.disabled = false;
-    input.focus();
-    print('', 'dim'); // spacer
-  }
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') return runCmd();
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (histIdx < historyBuf.length - 1) input.value = historyBuf[++histIdx];
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (histIdx > 0) { input.value = historyBuf[--histIdx]; }
-      else { histIdx = -1; input.value = ''; }
-    }
-  });
-
-  // Quick cmd tiles
-  document.querySelectorAll('.qcmd').forEach(el => {
-    el.addEventListener('click', () => {
-      input.value = el.dataset.cmd;
-      input.focus();
-      runCmd();
-    });
-  });
-
-  // ── Refresh openclaw status ────────────────────────────────────────────────────
-  async function refreshStatus() {
-    document.getElementById('status-summary').innerHTML = '<div class="s-row"><span class="s-key" style="color:var(--dim)">Loading…</span></div>';
-    try {
-      const res = await apiFetch('/api/status');
-      renderStatus(res);
-    } catch (e) {
-      document.getElementById('status-summary').innerHTML = `<div class="s-row"><span class="s-key err">Error: ${e.message}</span></div>`;
-    }
-  }
-
-  function renderStatus(res) {
-    const raw = (res.stdout || '') + (res.stderr || '');
-    const parsed = {};
-
-    // Parse table rows like: │ Key   │ Value │
-    const rowRe = /│\s*([^│\n]+?)\s*│\s*([^│\n]+?)\s*│/g;
-    let m;
-    while ((m = rowRe.exec(raw)) !== null) {
-      const k = m[1].trim();
-      const v = m[2].trim();
-      if (k && v && k !== 'Item' && k !== 'Value') {
-        parsed[k] = v.replace(/\s+/g, ' ');
-      }
-    }
-
-    // Render
-    const keys = ['OS', 'Version', 'Gateway', 'Gateway service', 'Agents', 'Sessions', 'Tailscale', 'Channel'];
-    let html = '';
-
-    keys.forEach(k => {
-      if (parsed[k]) {
-        const v = parsed[k];
-        const cls = v.includes('running') || v.includes('OK') ? 'ok'
-                  : v.includes('not installed') || v.includes('failed') ? 'err'
-                  : v.includes('warn') ? 'warn' : '';
-        html += `<div class="s-row"><span class="s-key">${k}</span><span class="s-val ${cls}">${v.substring(0, 60)}</span></div>`;
-      }
-    });
-
-    if (!html) {
-      // fallback: show first 10 lines of raw output
-      const lines = raw.split('\n').slice(0,15).filter(l => l.trim());
-      html = `<pre style="font-size:.7rem;color:var(--dim);white-space:pre-wrap">${lines.join('\n')}</pre>`;
-    }
-
-    document.getElementById('status-summary').innerHTML = html;
-  }
-
-  // ── Session info ──────────────────────────────────────────────────────────────
-  function renderSessionInfo() {
-    const el = document.getElementById('session-info');
-    el.innerHTML = `
-      <div>Host: <span style="color:var(--text)">${location.hostname}</span></div>
-      <div>Port: <span style="color:var(--text)">${location.port || '–'}</span></div>
-      <div>Tunnel: <span style="color:var(--ok)">Cloudflare</span></div>
-      <div>Connected: <span style="color:var(--text)">${new Date().toLocaleTimeString()}</span></div>
-    `;
-  }
-
-  // ── Boot ──────────────────────────────────────────────────────────────────────
-  function boot() {
-    input.focus();
-    renderSessionInfo();
-    refreshStatus();
-    document.addEventListener('click', () => {
-      if (!overlay.classList.contains('hidden') === false) input.focus();
-    });
-  }
+// ── Init (handled by DOMContentLoaded above) ─────────────────────────────────
 </script>
 </body>
 </html>
