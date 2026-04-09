@@ -13,8 +13,7 @@ die()  { echo -e "${RED}[ocd] ❌ $*${NC}" >&2; exit 1; }
 
 INSTALL_DIR="$HOME/.openclaw-doctor"
 PORT="${OCD_PORT:-12222}"
-REPO_URL="https://ocd.imdaxia.com"   # where your files are hosted
-SERVER_FILE="$INSTALL_DIR/server.js"
+REPO_URL="https://ocd.imdaxia.com"
 LOG_FILE="$INSTALL_DIR/doctor.log"
 PID_FILE="$INSTALL_DIR/doctor.pid"
 
@@ -90,26 +89,17 @@ cat > package.json <<'PKGJSON'
 }
 PKGJSON
 
-# ── Download server.js ────────────────────────────────────────────────────────
-log "Downloading server files..."
+# ── Download server.js and web UI ─────────────────────────────────────────────
+log "Downloading server files from $REPO_URL ..."
 
-# If server.js doesn't exist or is stale, download it (in production)
-# For local dev, we copy from the project dir if available
-if [ -f "$(dirname "$0")/server.js" ]; then
-  cp "$(dirname "$0")/server.js" server.js
-  log "Using local server.js"
-else
-  curl -sSL "$REPO_URL/server.js" -o server.js 2>/dev/null || \
-    warn "Could not download server.js from $REPO_URL — using bundled copy if available."
-fi
+curl -sSL "$REPO_URL/server.js" -o server.js \
+  || die "Failed to download server.js from $REPO_URL"
 
-# Download public/index.html
 mkdir -p public
-if [ -f "$(dirname "$0")/public/index.html" ]; then
-  cp "$(dirname "$0")/public/index.html" public/index.html
-else
-  curl -sSL "$REPO_URL/public/index.html" -o public/index.html 2>/dev/null || true
-fi
+curl -sSL "$REPO_URL/public/index.html" -o public/index.html \
+  || die "Failed to download public/index.html from $REPO_URL"
+
+ok "Server files downloaded."
 
 # ── Install npm dependencies ──────────────────────────────────────────────────
 log "Installing Node.js dependencies (this may take ~30s)..."
@@ -124,7 +114,7 @@ TOKEN=$(node -e "const c=require('crypto');process.stdout.write(c.randomBytes(16
 # ── Launch server ─────────────────────────────────────────────────────────────
 log "Starting OpenClaw Doctor on port $PORT..."
 
-OCD_PORT="$PORT" TOKEN="$TOKEN" nohup node server.js > "$LOG_FILE" 2>&1 &
+PORT="$PORT" TOKEN="$TOKEN" nohup node server.js > "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"
 SERVER_PID=$(cat "$PID_FILE")
 
@@ -140,19 +130,21 @@ done
 
 echo ""
 if [ -n "$TUNNEL_URL" ]; then
+  FULL_LINK="${TUNNEL_URL}/?token=${TOKEN}"
   echo -e "${GREEN}╔═════════════════════════════════════════════════════════╗${NC}"
   echo -e "${GREEN}║       ✅  OPENCLAW DOCTOR IS ONLINE                      ║${NC}"
   echo -e "${GREEN}╠═════════════════════════════════════════════════════════╣${NC}"
   echo -e "${GREEN}║${NC}  🌐 Public URL : ${CYAN}${TUNNEL_URL}${NC}"
   echo -e "${GREEN}║${NC}  🔐 Token      : ${YELLOW}${TOKEN}${NC}"
-  echo -e "${GREEN}║${NC}  🔗 Full Access: ${CYAN}${TUNNEL_URL}/?token=${TOKEN}${NC}"
+  echo -e "${GREEN}║${NC}  🔗 Full Access: ${CYAN}${FULL_LINK}${NC}"
   echo -e "${GREEN}║${NC}  📄 Logs       : ${LOG_FILE}"
   echo -e "${GREEN}╚═════════════════════════════════════════════════════════╝${NC}"
   echo ""
   echo "  Share the full link above with another AI agent or browser to"
   echo "  remotely diagnose and repair this OpenClaw installation."
   echo ""
-  echo "  To stop: kill \$(cat $PID_FILE)"
+  echo "  To stop:   kill \$(cat $PID_FILE)"
+  echo "  To update: curl -sSL https://ocd.imdaxia.com/install.sh | bash"
 else
   warn "Tunnel URL not detected yet. Check logs: tail -f $LOG_FILE"
   echo "  Local access: http://localhost:$PORT/?token=$TOKEN"

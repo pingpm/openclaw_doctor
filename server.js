@@ -17,7 +17,7 @@ const os = require('os');
 const app = express();
 
 // Config
-const PORT = parseInt(process.env.PORT) || 12222;
+const PORT = parseInt(process.env.PORT || process.env.OCD_PORT) || 12222;
 const TOKEN = process.env.TOKEN || crypto.randomBytes(16).toString('hex');
 const STATE_FILE = path.join(__dirname, '.doctor-state.json');
 

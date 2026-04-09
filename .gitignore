@@ -1,4 +1,5 @@
 node_modules/
+cloudflare-tunnel-manager/
 .doctor-state.json
 doctor.log
 doctor.pid
