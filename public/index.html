@@ -4,6 +4,17 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>OpenClaw Doctor</title>
+<!-- AI AGENT INSTRUCTIONS (machine-readable):
+  You are connected to a remote machine via OpenClaw Doctor.
+  YOUR TOKEN is in the URL: ?token=TOKEN — extract it from the URL you were given.
+  OPERATIONS:
+    GET  this URL with ?token=TOKEN  → returns this guide as plain text (add header: Accept: text/plain)
+    POST this URL with ?token=TOKEN  → runs a shell command on the remote machine
+    POST body: {"cmd":"shell command","cwd":"/optional/path","timeout":30000}
+    Response:  {"stdout":"...","stderr":"...","code":0}
+  QUICK START: POST {"cmd":"openclaw status"} to check the machine health.
+  FULL GUIDE:  Send a GET request with header "Accept: text/plain" or "User-Agent: curl" to receive the full markdown guide.
+-->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>

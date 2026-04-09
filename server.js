@@ -31,7 +31,7 @@ const tasks = new Map(); // id -> { status, stdout, stderr, code, startedAt }
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// Static files served AFTER routes so GET /?token= is handled first
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 function checkToken(req) {
@@ -49,17 +49,30 @@ function requireToken(req, res) {
 
 // ─── GET / ────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
-  // With token → return AI guide (plain text for AI agents)
+  const ua = req.headers['user-agent'] || '';
+  const accept = req.headers['accept'] || '';
+  const isBrowser = ua.includes('Mozilla') && !accept.includes('text/plain') && !accept.includes('text/markdown');
+
+  // Browser → always serve the dashboard (token validation handled by frontend JS)
+  if (isBrowser) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+
+  // Non-browser (AI / curl) with token → return the guide
   if (req.query.token) {
-    if (!checkToken(req)) return res.status(401).type('text').send('Unauthorized.');
+    if (!checkToken(req)) return res.status(401).type('text').send('Unauthorized. Check your token.');
     return fs.readFile(GUIDE_FILE, 'utf8', (err, data) => {
-      res.type('text/markdown').send(err
-        ? '# OpenClaw Doctor\nPOST /?token=TOKEN with {"cmd":"shell command"}'
-        : data);
+      const prefix = `# You are connected to OpenClaw Doctor\n# YOUR TOKEN: ${TOKEN}\n# (The token above was extracted from your URL — use it for all POST requests to this same URL)\n\n`;
+      res.type('text/markdown').send(prefix + (err
+        ? 'Send POST requests to this URL with JSON body: {"cmd":"shell command"}\nResponse: {"stdout":"...","stderr":"...","code":0}'
+        : data));
     });
   }
-  // No token → serve dashboard UI
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+
+  // Non-browser, no token → brief instructions
+  res.type('text/plain').send(
+    'OpenClaw Doctor\nAdd ?token=TOKEN to this URL to receive the AI operation guide.\nGet the token from the terminal where the server is running.'
+  );
 });
 
 // ─── GET /status ──────────────────────────────────────────────────────────────
@@ -139,6 +152,9 @@ app.get('/info', (req, res) => {
   if (!requireToken(req, res)) return;
   res.json({ token: TOKEN, tunnelUrl, port: PORT, pid: process.pid });
 });
+
+// ─── Static files — after all routes so GET /?token= is handled first ─────────
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let tunnelUrl = '';
