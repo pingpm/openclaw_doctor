@@ -110,3 +110,7 @@ OCD_PORT=12222 TOKEN=mysecrettoken node server.js
 ## License
 
 MIT
+
+---
+
+[中文说明 (README.zh.md)](./README.zh.md)

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw Doctor · AI 智能体远程急救工具</title>
+  <meta name="description" content="OpenClaw 坏了？一条命令，10 秒内获得公网地址，远程执行命令、查看健康状态、修复配置——无需 SSH，无需密码。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700;900&family=Geist+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #06060a;
+      --panel:  #0e0e14;
+      --border: rgba(255,255,255,0.08);
+      --accent: #e84545;
+      --a2:     #4f8ef7;
+      --ok:     #3dffa0;
+      --text:   #e4e4ed;
+      --dim:    #71717a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        radial-gradient(circle at 20% 10%, rgba(232,69,69,.07) 0%, transparent 45%),
+        radial-gradient(circle at 80% 85%, rgba(79,142,247,.05) 0%, transparent 45%),
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.25rem 4rem;
+      background: rgba(6,6,10,.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: 1.1rem; font-weight: 900; letter-spacing: -.01em;
+    }
+    .logo .red { color: var(--accent); }
+
+    .nav-links { display: flex; gap: 2rem; align-items: center; }
+    .nav-links a {
+      color: var(--dim); text-decoration: none; font-size: .9rem; font-weight: 700;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-lang {
+      font-size: .8rem; padding: .3rem .7rem; border-radius: 6px;
+      border: 1px solid var(--border); color: var(--dim);
+      text-decoration: none; transition: border-color .2s, color .2s;
+    }
+    .nav-lang:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative; z-index: 1;
+      min-height: 92vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 6rem 2rem;
+    }
+
+    .badge-pill {
+      display: inline-flex; align-items: center; gap: .5rem;
+      font-size: .75rem; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: .35rem .9rem; border-radius: 20px; margin-bottom: 2rem;
+      background: rgba(232,69,69,.1); color: var(--accent);
+      border: 1px solid rgba(232,69,69,.25);
+      animation: fadeUp .8s ease both;
+    }
+    .badge-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:.5;transform:scale(.9)} 50%{opacity:1;transform:scale(1.2)} }
+
+    h1 {
+      font-size: clamp(3rem, 8vw, 6.5rem);
+      font-weight: 900; letter-spacing: -.03em; line-height: 1.05;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(160deg, #fff 30%, #71717a 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: fadeUp .8s .1s ease both;
+    }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--dim); max-width: 580px; line-height: 1.8;
+      margin-bottom: 3rem; font-weight: 400;
+      animation: fadeUp .8s .2s ease both;
+    }
+    .hero-sub strong { color: var(--text); font-weight: 700; }
+
+    /* ── Install ── */
+    .install-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 1rem;
+      animation: fadeUp .8s .3s ease both;
+    }
+
+    .install-box {
+      display: flex; align-items: center; gap: 1.25rem;
+      background: var(--panel); border: 1px solid var(--border);
+      padding: 1rem 1.5rem; border-radius: 14px;
+      box-shadow: 0 0 60px rgba(0,0,0,.6), 0 0 0 1px rgba(232,69,69,.08);
+    }
+
+    .install-box code {
+      font-family: 'Geist Mono', monospace;
+      font-size: .98rem; color: var(--text);
+      white-space: nowrap;
+    }
+
+    .copy-btn {
+      background: var(--accent); color: #fff; border: none;
+      font-family: inherit; font-weight: 700; font-size: .85rem;
+      padding: .5rem 1.2rem; border-radius: 8px; cursor: pointer;
+      transition: opacity .15s, transform .15s; white-space: nowrap;
+    }
+    .copy-btn:hover  { opacity: .82; transform: translateY(-2px); }
+    .copy-btn:active { transform: scale(.96); }
+
+    .install-note { font-size: .8rem; color: var(--dim); }
+
+    /* ── Sections ── */
+    .section {
+      position: relative; z-index: 1;
+      max-width: 1100px; margin: 0 auto;
+      padding: 6rem 2rem;
+    }
+
+    .section-eyebrow {
+      font-size: .72rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--accent); font-weight: 700; margin-bottom: 1rem;
+    }
+
+    .section-title {
+      font-size: clamp(1.8rem, 4vw, 3.2rem); font-weight: 900; letter-spacing: -.02em;
+      line-height: 1.2; margin-bottom: 3.5rem;
+    }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 3rem; }
+
+    .step {
+      display: grid; grid-template-columns: 64px 1fr;
+      gap: 1.75rem; align-items: start;
+    }
+
+    .step-num {
+      width: 54px; height: 54px; border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; font-weight: 900;
+      background: rgba(232,69,69,.1); color: var(--accent);
+      border: 1px solid rgba(232,69,69,.2);
+      flex-shrink: 0;
+    }
+
+    .step-body h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: .6rem; }
+    .step-body p  { color: var(--dim); font-size: .95rem; line-height: 1.8; }
+
+    .step-body code {
+      font-family: 'Geist Mono', monospace; font-size: .86rem;
+      background: var(--panel); border: 1px solid var(--border);
+      padding: .15rem .45rem; border-radius: 5px; color: var(--accent);
+    }
+
+    /* ── Features ── */
+    .features {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feat-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2rem;
+      transition: border-color .3s, transform .3s;
+    }
+    .feat-card:hover {
+      border-color: rgba(232,69,69,.38);
+      transform: translateY(-5px);
+    }
+
+    .feat-icon {
+      width: 50px; height: 50px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 1.25rem;
+      background: rgba(232,69,69,.08); border: 1px solid rgba(232,69,69,.14);
+    }
+
+    .feat-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: .6rem; }
+    .feat-card p  { color: var(--dim); font-size: .9rem; line-height: 1.8; }
+
+    /* ── Terminal mockup ── */
+    .terminal-mockup {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,.55);
+      margin-top: 2rem;
+    }
+
+    .mock-bar {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .9rem 1.25rem;
+      background: rgba(255,255,255,.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .mock-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mock-dot.r { background: #ff5f57; }
+    .mock-dot.y { background: #febc2e; }
+    .mock-dot.g { background: #28c840; }
+    .mock-title { margin: 0 auto; font-family: 'Geist Mono', monospace; font-size: .72rem; color: var(--dim); }
+
+    .mock-body {
+      padding: 1.5rem;
+      font-family: 'Geist Mono', monospace; font-size: .82rem; line-height: 1.85;
+    }
+    .mc { color: #e84545; }
+    .mo { color: #a8ffcf; }
+    .md { color: var(--dim); }
+    .mw { color: #ffc043; }
+    .mb { color: #fff; font-weight: bold; }
+
+    /* ── CTA ── */
+    .cta-section {
+      position: relative; z-index: 1;
+      text-align: center; padding: 7rem 2rem;
+      border-top: 1px solid var(--border);
+    }
+    .cta-section h2 {
+      font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 900; letter-spacing: -.02em;
+      line-height: 1.3; margin-bottom: 1rem;
+    }
+    .cta-section p  { color: var(--dim); max-width: 480px; margin: 0 auto 2.5rem; line-height: 1.8; }
+
+    /* ── Footer ── */
+    footer {
+      position: relative; z-index: 1;
+      text-align: center; padding: 2.5rem;
+      color: var(--dim); font-size: .8rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      nav { padding: 1rem 1.5rem; }
+      .nav-links .hide-mobile { display: none; }
+      .install-box { flex-direction: column; }
+      .install-box code { font-size: .82rem; white-space: pre-wrap; word-break: break-all; }
+      .step { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo"><span class="red">🦞</span> OpenClaw Doctor</div>
+  <div class="nav-links">
+    <a href="#how" class="hide-mobile">工作原理</a>
+    <a href="#features" class="hide-mobile">功能特性</a>
+    <a href="#api" class="hide-mobile">API 文档</a>
+    <a href="./index.html" class="nav-lang">EN</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="badge-pill"><div class="dot"></div> v1.0 · 免费开源</div>
+  <h1>OpenClaw<br/>坏了？</h1>
+  <p class="hero-sub">
+    在任意一台 OpenClaw 故障的电脑上运行 <strong>OpenClaw Doctor</strong>，<br/>
+    10 秒内获得一个<strong>公网访问地址</strong>——无需 SSH、无需用户名密码，<br/>
+    另一个 AI 或人通过这个地址即可远程执行命令、修复配置、恢复服务。
+  </p>
+
+  <div class="install-wrap" id="install">
+    <div class="install-box">
+      <code id="install-cmd">curl -sSL https://ocd.imdaxia.com/install.sh | bash</code>
+      <button class="copy-btn" id="copy-btn" onclick="copyCmd()">复制</button>
+    </div>
+    <span class="install-note">支持 macOS · Linux · Windows（WSL）</span>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="section-eyebrow fade-in">工作原理</div>
+  <h2 class="section-title fade-in">从崩溃到恢复<br/>只需三步</h2>
+
+  <div class="steps">
+    <div class="step fade-in">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>运行安装命令</h3>
+        <p>一条 <code>curl | bash</code> 命令自动安装所有依赖（Node.js、Cloudflare 二进制），并在端口 <code>12222</code> 启动 Doctor 服务，全程无需任何手动配置。</p>
+      </div>
+    </div>
+    <div class="step fade-in">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>终端里出现公网地址</h3>
+        <p>OpenClaw Doctor 使用 <strong>Cloudflare 内网穿透</strong>，无需路由器端口映射、无需域名备案，约 5 秒内自动生成形如 <code>xxx.trycloudflare.com</code> 的免费公网 URL。</p>
+      </div>
+    </div>
+    <div class="step fade-in">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>把链接和 Token 发给 AI 或其他人</h3>
+        <p>在任意浏览器打开链接（或让另一个 AI 智能体调用 API），即可获得一个实时终端，在远程电脑上执行任意命令：修配置文件、重启服务、查日志——和在本地操作一模一样。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TERMINAL MOCKUP -->
+<div class="section" style="padding-top:0;">
+  <div class="terminal-mockup fade-in">
+    <div class="mock-bar">
+      <div class="mock-dot r"></div>
+      <div class="mock-dot y"></div>
+      <div class="mock-dot g"></div>
+      <div class="mock-title">openclaw-doctor — zsh</div>
+    </div>
+    <div class="mock-body">
+      <span class="md">$ curl -sSL https://ocd.imdaxia.com/install.sh | bash</span><br/>
+      <span class="mo">🦞 OpenClaw Doctor — 初始化中...</span><br/>
+      <span class="mo">✅ 已检测到 Node.js v22.x</span><br/>
+      <span class="mo">📦 正在安装依赖...</span><br/>
+      <span class="mo">🚀 正在启动 Cloudflare 隧道 → localhost:12222</span><br/>
+      <br/>
+      <span class="mb">╔═════════════════════════════════════════════════════════╗</span><br/>
+      <span class="mb">║       ✅  OPENCLAW DOCTOR 已在线                        ║</span><br/>
+      <span class="mb">║  🌐 公网地址 : https://amber-sunset.trycloudflare.com   ║</span><br/>
+      <span class="mb">║  🔐 访问令牌 : a3f9d2e1b4c76f80...                     ║</span><br/>
+      <span class="mb">║  🔗 完整链接 : https://amber-sunset.trycloudflare.com/  ║</span><br/>
+      <span class="mb">║               ?token=a3f9d2e1b4c76f80...               ║</span><br/>
+      <span class="mb">╚═════════════════════════════════════════════════════════╝</span><br/>
+      <br/>
+      <span class="md"># 将上方完整链接发送给另一个 AI 智能体或协作者即可远程操作</span>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section" id="features" style="padding-top:4rem;">
+  <div class="section-eyebrow fade-in">功能特性</div>
+  <h2 class="section-title fade-in">修好一台坏掉的<br/>AI 智能体所需的一切</h2>
+
+  <div class="features">
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🌐</div>
+      <h3>无需 SSH</h3>
+      <p>只需一个 HTTPS 链接即可访问任意电脑。不需要用户名、密码，不需要开放防火墙端口，不需要配置公钥。</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🔐</div>
+      <h3>令牌保护</h3>
+      <p>每次启动自动生成一个 128 位随机令牌。只有持有令牌的人或 AI 才能执行命令，无令牌访问一律返回 401。</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🩺</div>
+      <h3>OpenClaw 健康面板</h3>
+      <p>自动运行 <code>openclaw status</code> 并将网关状态、活跃 Agent、会话数量、内存、安全警告以可读格式展示在侧边栏。</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">⚡</div>
+      <h3>完整 Shell 权限</h3>
+      <p>执行任意 Shell 命令、读写文件、列出目录——你在本地能做的，通过这个工具都能远程做到。</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🤖</div>
+      <h3>AI 智能体友好 API</h3>
+      <p>标准 JSON REST 接口。任何 AI 智能体只需 <code>POST /api/exec</code> 一个命令，即可获得结构化的 <code>stdout</code>、<code>stderr</code> 和退出码。</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🚇</div>
+      <h3>Cloudflare 内网穿透</h3>
+      <p>基于 Cloudflare 免费快速隧道服务，穿透 NAT、VPN 和防火墙，零配置——不需要账号，不需要域名。</p>
+    </div>
+  </div>
+</section>
+
+<!-- API DOCS -->
+<section class="section" id="api" style="padding-top:2rem;">
+  <div class="section-eyebrow fade-in">API 文档</div>
+  <h2 class="section-title fade-in">专为 AI 智能体设计</h2>
+
+  <div class="terminal-mockup fade-in">
+    <div class="mock-bar">
+      <div class="mock-dot r"></div>
+      <div class="mock-dot y"></div>
+      <div class="mock-dot g"></div>
+      <div class="mock-title">API · application/json · 请求头 x-doctor-token 或 ?token= 查询参数</div>
+    </div>
+    <div class="mock-body">
+      <span class="md"># 存活检测（无需认证）</span><br/>
+      <span class="mc">GET </span> <span class="mo">/api/ping</span><br/>
+      <span class="md">→ { "status": "alive", "app": "openclaw-doctor" }</span><br/>
+      <br/>
+      <span class="md"># 获取完整的 openclaw status 输出</span><br/>
+      <span class="mc">GET </span> <span class="mo">/api/status</span>  <span class="md">x-doctor-token: &lt;token&gt;</span><br/>
+      <br/>
+      <span class="md"># 执行 Shell 命令</span><br/>
+      <span class="mc">POST</span> <span class="mo">/api/exec</span>   <span class="md">x-doctor-token: &lt;token&gt;</span><br/>
+      <span class="md">请求体: { "cmd": "openclaw restart", "cwd": "/home/user" }</span><br/>
+      <span class="md">响应:   { "stdout": "...", "stderr": "...", "code": 0 }</span><br/>
+      <br/>
+      <span class="md"># 读取文件内容</span><br/>
+      <span class="mc">GET </span> <span class="mo">/api/files/read?filePath=/path/to/file</span><br/>
+      <br/>
+      <span class="md"># 写入 / 创建文件（自动创建目录）</span><br/>
+      <span class="mc">POST</span> <span class="mo">/api/files/write</span><br/>
+      <span class="md">请求体: { "filePath": "/path/to/file", "content": "配置内容..." }</span><br/>
+      <br/>
+      <span class="md"># 列出目录内容</span><br/>
+      <span class="mc">GET </span> <span class="mo">/api/files/list?dirPath=/path/to/dir</span><br/>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>让你的 Claw<br/>重新张开爪子。</h2>
+  <p>OpenClaw Doctor 完全免费、开源，专为 OpenClaw 每次更新后的"翻车时刻"而生。</p>
+  <div class="install-box" style="display:inline-flex; margin: 0 auto;">
+    <code>curl -sSL https://ocd.imdaxia.com/install.sh | bash</code>
+    <button class="copy-btn" onclick="copyCmd()">复制</button>
+  </div>
+</section>
+
+<footer>
+  &copy; 2026 OpenClaw Doctor · 开源免费 · 由 Cloudflare 隧道驱动
+  <br/><span style="font-size:.7rem;margin-top:.3rem;display:block">与 OpenClaw AI 官方无关联</span>
+</footer>
+
+<script>
+  function copyCmd() {
+    const cmd = 'curl -sSL https://ocd.imdaxia.com/install.sh | bash';
+    navigator.clipboard.writeText(cmd).catch(() => {});
+    document.querySelectorAll('.copy-btn').forEach(b => {
+      b.textContent = '✓ 已复制';
+      setTimeout(() => b.textContent = '复制', 2000);
+    });
+  }
+
+  // Intersection observer fade-in
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
