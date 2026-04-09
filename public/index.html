@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw Doctor · Remote Terminal</title>
+  <meta name="description" content="Remote diagnostic and repair terminal for OpenClaw AI agent." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #07070a;
+      --panel:     #0d0d12;
+      --border:    rgba(255,255,255,0.07);
+      --accent:    #e84545;
+      --accent2:   #4f8ef7;
+      --ok:        #3effa0;
+      --warn:      #ffc043;
+      --text:      #d4d4d8;
+      --dim:       #71717a;
+      --header-h:  56px;
+      --sidebar-w: 320px;
+      --font-mono: 'Geist Mono', 'Fira Code', monospace;
+      --font-ui:   'Syne', sans-serif;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Background grid ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── Header ── */
+    header {
+      height: var(--header-h);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(13,13,18,0.9);
+      backdrop-filter: blur(12px);
+      position: relative; z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-family: var(--font-ui);
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .logo .claw { color: var(--accent); }
+
+    .header-right { display: flex; align-items: center; gap: 1rem; }
+
+    .badge {
+      display: flex; align-items: center; gap: .4rem;
+      font-family: var(--font-mono);
+      font-size: .7rem; font-weight: 600; letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: .3rem .75rem; border-radius: 20px;
+    }
+    .badge.ok    { background: rgba(62,255,160,.1); color: var(--ok);   border: 1px solid rgba(62,255,160,.2); }
+    .badge.error { background: rgba(232,69,69,.1);  color: var(--accent); border: 1px solid rgba(232,69,69,.2); }
+
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor;
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity: .5; transform: scale(.9); }
+      50%      { opacity: 1;  transform: scale(1.2); }
+    }
+
+    /* ── Layout ── */
+    .workspace {
+      flex: 1; display: flex; overflow: hidden;
+      position: relative; z-index: 1;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .sidebar-section {
+      padding: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-size: .65rem; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--dim); font-weight: 700; margin-bottom: 1rem;
+    }
+
+    /* Openclaw status summary */
+    #status-summary { font-family: var(--font-mono); font-size: .75rem; line-height: 1.8; }
+    .s-row { display: flex; gap: .5rem; }
+    .s-key { color: var(--dim); min-width: 90px; flex-shrink: 0; }
+    .s-val { color: var(--text); word-break: break-all; }
+    .s-val.ok   { color: var(--ok); }
+    .s-val.warn { color: var(--warn); }
+    .s-val.err  { color: var(--accent); }
+
+    /* Sidebar actions */
+    .btn {
+      display: block; width: 100%; border: none; cursor: pointer;
+      font-family: var(--font-ui); font-size: .85rem; font-weight: 700;
+      padding: .65rem 1rem; border-radius: 8px;
+      transition: opacity .15s, transform .15s;
+      text-align: left; margin-bottom: .5rem;
+    }
+    .btn:hover  { opacity: .85; transform: translateX(2px); }
+    .btn:active { transform: scale(.98); }
+    .btn.primary { background: var(--accent); color: white; }
+    .btn.ghost   { background: rgba(255,255,255,.05); color: var(--text); border: 1px solid var(--border); }
+
+    /* Quick commands */
+    .qcmd {
+      font-family: var(--font-mono); font-size: .75rem;
+      padding: .5rem .75rem; border-radius: 6px;
+      background: rgba(255,255,255,.03); border: 1px solid var(--border);
+      color: var(--dim); cursor: pointer; margin-bottom: .4rem;
+      display: flex; align-items: center; gap: .5rem;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .qcmd:hover { background: rgba(232,69,69,.08); border-color: rgba(232,69,69,.3); color: var(--text); }
+    .qcmd .arrow { margin-left: auto; opacity: .4; }
+
+    /* ── Terminal pane ── */
+    #terminal-pane {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    #terminal-output {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+      padding: 1.25rem 1.5rem;
+      font-family: var(--font-mono); font-size: .82rem;
+      line-height: 1.55;
+      color: #c0c0cc;
+    }
+
+    #terminal-output::-webkit-scrollbar       { width: 5px; }
+    #terminal-output::-webkit-scrollbar-track { background: transparent; }
+    #terminal-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .tl { display: block; margin-bottom: .1rem; animation: tlIn .15s ease; }
+    @keyframes tlIn { from { opacity: 0; transform: translateY(3px); } }
+    .tl.cmd  { color: var(--accent); }
+    .tl.ok   { color: #a8ffcf; }
+    .tl.err  { color: #ff9191; }
+    .tl.info { color: var(--accent2); }
+    .tl.dim  { color: var(--dim); }
+
+    /* ── Input bar ── */
+    .input-bar {
+      display: flex; align-items: center; gap: .75rem;
+      padding: .85rem 1.5rem;
+      border-top: 1px solid var(--border);
+      background: rgba(13,13,18,.95);
+      flex-shrink: 0;
+    }
+
+    .input-bar .prompt-icon {
+      color: var(--accent); font-family: var(--font-mono);
+      font-size: .9rem; font-weight: 600; user-select: none;
+      flex-shrink: 0;
+    }
+
+    #cmd-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: var(--font-mono); font-size: .85rem;
+      caret-color: var(--accent);
+    }
+    #cmd-input::placeholder { color: var(--dim); }
+
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(232,69,69,.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0; display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .send-btn {
+      background: var(--accent); color: white; border: none; cursor: pointer;
+      font-family: var(--font-ui); font-weight: 700; font-size: .8rem;
+      padding: .4rem .85rem; border-radius: 6px;
+      transition: opacity .15s; flex-shrink: 0;
+    }
+    .send-btn:hover { opacity: .8; }
+
+    /* ── Auth overlay ── */
+    #auth-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1.5rem;
+      font-family: var(--font-ui);
+    }
+
+    #auth-overlay.hidden { display: none; }
+
+    #auth-overlay h2 {
+      font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em;
+    }
+
+    #auth-overlay p { color: var(--dim); font-size: .9rem; max-width: 340px; text-align: center; }
+
+    #token-input {
+      font-family: var(--font-mono); font-size: .9rem;
+      background: var(--panel); border: 1px solid var(--border);
+      color: var(--text); padding: .75rem 1rem; border-radius: 10px;
+      width: 340px; outline: none;
+      transition: border-color .2s;
+    }
+    #token-input:focus { border-color: var(--accent); }
+
+    #connect-btn {
+      width: 340px;
+      background: var(--accent); color: white; border: none;
+      font-family: var(--font-ui); font-weight: 800; font-size: 1rem;
+      padding: .8rem 2rem; border-radius: 10px; cursor: pointer;
+      transition: opacity .15s, transform .15s;
+    }
+    #connect-btn:hover  { opacity: .85; transform: translateY(-2px); }
+    #connect-btn:active { transform: scale(.97); }
+
+    #auth-error { color: var(--accent); font-size: .8rem; display: none; }
+
+    /* ── Responsive ── */
+    @media (max-width: 720px) {
+      aside { display: none; }
+      .logo span.full { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Auth overlay (shown when no token in URL) -->
+<div id="auth-overlay">
+  <div class="logo"><span class="claw">🦞</span> OpenClaw Doctor</div>
+  <h2>Connect Securely</h2>
+  <p>Enter the admin token shown in your terminal to access the remote diagnostic panel.</p>
+  <input id="token-input" type="password" placeholder="Paste admin token…" autocomplete="off" />
+  <p id="auth-error">❌ Invalid token — access denied.</p>
+  <button id="connect-btn">Connect →</button>
+</div>
+
+<!-- App shell -->
+<header>
+  <div class="logo">
+    <span class="claw">🦞</span>
+    <span class="full">OpenClaw Doctor</span>
+  </div>
+  <div class="header-right">
+    <div class="badge ok" id="conn-badge">
+      <div class="dot"></div>
+      CONNECTED
+    </div>
+  </div>
+</header>
+
+<div class="workspace">
+  <!-- Sidebar -->
+  <aside>
+    <div class="sidebar-section">
+      <div class="section-label">OpenClaw Status</div>
+      <div id="status-summary">
+        <div class="s-row"><span class="s-key">loading…</span></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Quick Commands</div>
+      <div class="qcmd" data-cmd="openclaw status"><span>openclaw status</span><span class="arrow">↗</span></div>
+      <div class="qcmd" data-cmd="openclaw status --deep"><span>openclaw status --deep</span><span class="arrow">↗</span></div>
+      <div class="qcmd" data-cmd="openclaw logs --follow --lines 50"><span>openclaw logs (50 lines)</span><span class="arrow">↗</span></div>
+      <div class="qcmd" data-cmd="openclaw security audit"><span>security audit</span><span class="arrow">↗</span></div>
+      <div class="qcmd" data-cmd="ls -la ~/"><span>ls ~/</span><span class="arrow">↗</span></div>
+      <div class="qcmd" data-cmd="ps aux | grep openclaw"><span>ps | grep openclaw</span><span class="arrow">↗</span></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Actions</div>
+      <button class="btn primary" onclick="refreshStatus()">🔄 Refresh Status</button>
+      <button class="btn ghost" onclick="clearTerminal()">🗑 Clear Terminal</button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Session Info</div>
+      <div id="session-info" style="font-family:var(--font-mono);font-size:.7rem;color:var(--dim);line-height:1.9;">
+        Loading…
+      </div>
+    </div>
+  </aside>
+
+  <!-- Terminal pane -->
+  <div id="terminal-pane">
+    <div id="terminal-output">
+      <span class="tl info">🦞 OpenClaw Doctor — Remote Diagnostic Terminal</span>
+      <span class="tl info">   Authorized via Cloudflare Tunnel. All commands run on the remote host.</span>
+      <span class="tl dim">   Type a shell command below, or pick one from the sidebar.</span>
+      <span class="tl dim"> </span>
+    </div>
+    <div class="input-bar">
+      <span class="prompt-icon">$</span>
+      <input id="cmd-input" type="text" placeholder="Enter shell command and press Enter…" autocomplete="off" spellcheck="false" />
+      <div class="spinner" id="spinner"></div>
+      <button class="send-btn" onclick="runCmd()">Run</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ────────────────────────────────────────────────────────────────────
+  let TOKEN = new URLSearchParams(location.search).get('token') || '';
+  const output = document.getElementById('terminal-output');
+  const input  = document.getElementById('cmd-input');
+  const spinner = document.getElementById('spinner');
+  const overlay = document.getElementById('auth-overlay');
+  const historyBuf = [];
+  let histIdx = -1;
+
+  // ── Auth ─────────────────────────────────────────────────────────────────────
+  function hasToken() { return !!TOKEN; }
+
+  function showOverlay(show) {
+    overlay.classList.toggle('hidden', !show);
+  }
+
+  if (hasToken()) {
+    showOverlay(false);
+    boot();
+  } else {
+    showOverlay(true);
+  }
+
+  document.getElementById('connect-btn').addEventListener('click', tryConnect);
+  document.getElementById('token-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') tryConnect();
+  });
+
+  async function tryConnect() {
+    TOKEN = document.getElementById('token-input').value.trim();
+    const errEl = document.getElementById('auth-error');
+    errEl.style.display = 'none';
+    try {
+      const r = await apiFetch('/api/ping');
+      if (r.app === 'openclaw-doctor') {
+        showOverlay(false);
+        // save token to URL for refresh
+        const url = new URL(location.href);
+        url.searchParams.set('token', TOKEN);
+        history.replaceState({}, '', url.toString());
+        boot();
+      } else {
+        throw new Error('bad response');
+      }
+    } catch (e) {
+      TOKEN = '';
+      errEl.style.display = 'block';
+    }
+  }
+
+  // ── API helpers ───────────────────────────────────────────────────────────────
+  async function apiFetch(path, opts = {}) {
+    const headers = { 'x-doctor-token': TOKEN, ...(opts.headers || {}) };
+    const r = await fetch(path, { ...opts, headers });
+    if (r.status === 401) throw new Error('Unauthorized');
+    return r.json();
+  }
+
+  async function execCmd(cmd) {
+    return apiFetch('/api/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd })
+    });
+  }
+
+  // ── Terminal output ───────────────────────────────────────────────────────────
+  function print(text, cls = '') {
+    const lines = String(text).split('\n');
+    lines.forEach(line => {
+      const el = document.createElement('span');
+      el.className = 'tl ' + cls;
+      el.textContent = line;
+      output.appendChild(el);
+    });
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function clearTerminal() {
+    output.innerHTML = '';
+    print('Terminal cleared.', 'dim');
+  }
+
+  // ── Run command ───────────────────────────────────────────────────────────────
+  async function runCmd() {
+    const cmd = input.value.trim();
+    if (!cmd) return;
+
+    input.value = '';
+    historyBuf.unshift(cmd);
+    histIdx = -1;
+
+    print('$ ' + cmd, 'cmd');
+    spinner.style.display = 'block';
+    input.disabled = true;
+
+    try {
+      const res = await execCmd(cmd);
+      if (res.stdout) print(res.stdout.trimEnd(), res.code === 0 ? '' : 'err');
+      if (res.stderr) print(res.stderr.trimEnd(), 'err');
+      if (!res.stdout && !res.stderr) print('(no output)', 'dim');
+    } catch (err) {
+      print('Connection error: ' + err.message, 'err');
+    }
+
+    spinner.style.display = 'none';
+    input.disabled = false;
+    input.focus();
+    print('', 'dim'); // spacer
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') return runCmd();
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (histIdx < historyBuf.length - 1) input.value = historyBuf[++histIdx];
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (histIdx > 0) { input.value = historyBuf[--histIdx]; }
+      else { histIdx = -1; input.value = ''; }
+    }
+  });
+
+  // Quick cmd tiles
+  document.querySelectorAll('.qcmd').forEach(el => {
+    el.addEventListener('click', () => {
+      input.value = el.dataset.cmd;
+      input.focus();
+      runCmd();
+    });
+  });
+
+  // ── Refresh openclaw status ────────────────────────────────────────────────────
+  async function refreshStatus() {
+    document.getElementById('status-summary').innerHTML = '<div class="s-row"><span class="s-key" style="color:var(--dim)">Loading…</span></div>';
+    try {
+      const res = await apiFetch('/api/status');
+      renderStatus(res);
+    } catch (e) {
+      document.getElementById('status-summary').innerHTML = `<div class="s-row"><span class="s-key err">Error: ${e.message}</span></div>`;
+    }
+  }
+
+  function renderStatus(res) {
+    const raw = (res.stdout || '') + (res.stderr || '');
+    const parsed = {};
+
+    // Parse table rows like: │ Key   │ Value │
+    const rowRe = /│\s*([^│\n]+?)\s*│\s*([^│\n]+?)\s*│/g;
+    let m;
+    while ((m = rowRe.exec(raw)) !== null) {
+      const k = m[1].trim();
+      const v = m[2].trim();
+      if (k && v && k !== 'Item' && k !== 'Value') {
+        parsed[k] = v.replace(/\s+/g, ' ');
+      }
+    }
+
+    // Render
+    const keys = ['OS', 'Version', 'Gateway', 'Gateway service', 'Agents', 'Sessions', 'Tailscale', 'Channel'];
+    let html = '';
+
+    keys.forEach(k => {
+      if (parsed[k]) {
+        const v = parsed[k];
+        const cls = v.includes('running') || v.includes('OK') ? 'ok'
+                  : v.includes('not installed') || v.includes('failed') ? 'err'
+                  : v.includes('warn') ? 'warn' : '';
+        html += `<div class="s-row"><span class="s-key">${k}</span><span class="s-val ${cls}">${v.substring(0, 60)}</span></div>`;
+      }
+    });
+
+    if (!html) {
+      // fallback: show first 10 lines of raw output
+      const lines = raw.split('\n').slice(0,15).filter(l => l.trim());
+      html = `<pre style="font-size:.7rem;color:var(--dim);white-space:pre-wrap">${lines.join('\n')}</pre>`;
+    }
+
+    document.getElementById('status-summary').innerHTML = html;
+  }
+
+  // ── Session info ──────────────────────────────────────────────────────────────
+  function renderSessionInfo() {
+    const el = document.getElementById('session-info');
+    el.innerHTML = `
+      <div>Host: <span style="color:var(--text)">${location.hostname}</span></div>
+      <div>Port: <span style="color:var(--text)">${location.port || '–'}</span></div>
+      <div>Tunnel: <span style="color:var(--ok)">Cloudflare</span></div>
+      <div>Connected: <span style="color:var(--text)">${new Date().toLocaleTimeString()}</span></div>
+    `;
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────────
+  function boot() {
+    input.focus();
+    renderSessionInfo();
+    refreshStatus();
+    document.addEventListener('click', () => {
+      if (!overlay.classList.contains('hidden') === false) input.focus();
+    });
+  }
+</script>
+</body>
+</html>

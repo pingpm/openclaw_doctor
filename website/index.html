@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw Doctor · Remote Repair for Your AI Agent</title>
+  <meta name="description" content="OpenClaw broken? Install OpenClaw Doctor in 10 seconds. Get a public URL, remote terminal access, and live health monitoring — no SSH required." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Geist+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #06060a;
+      --panel:  #0e0e14;
+      --border: rgba(255,255,255,0.08);
+      --accent: #e84545;
+      --a2:     #4f8ef7;
+      --ok:     #3dffa0;
+      --text:   #e4e4ed;
+      --dim:    #71717a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ── Background noise / grid ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        radial-gradient(circle at 25% 10%, rgba(232,69,69,.06) 0%, transparent 45%),
+        radial-gradient(circle at 80% 85%, rgba(79,142,247,.05) 0%, transparent 45%),
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.25rem 4rem;
+      background: rgba(6,6,10,.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: 1.1rem; font-weight: 800; letter-spacing: -.02em;
+    }
+    .logo .red { color: var(--accent); }
+
+    .nav-links { display: flex; gap: 2rem; }
+    .nav-links a {
+      color: var(--dim); text-decoration: none; font-size: .9rem; font-weight: 700;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative; z-index: 1;
+      min-height: 92vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 6rem 2rem;
+    }
+
+    .badge-pill {
+      display: inline-flex; align-items: center; gap: .5rem;
+      font-size: .75rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: .35rem .9rem; border-radius: 20px; margin-bottom: 2rem;
+      background: rgba(232,69,69,.1); color: var(--accent);
+      border: 1px solid rgba(232,69,69,.25);
+      animation: fadeUp .8s ease both;
+    }
+    .badge-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+
+    h1 {
+      font-size: clamp(3rem, 8vw, 7rem);
+      font-weight: 800; letter-spacing: -.04em; line-height: 1;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(160deg, #fff 30%, #71717a 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: fadeUp .8s .1s ease both;
+    }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.35rem);
+      color: var(--dim); max-width: 600px; line-height: 1.7;
+      margin-bottom: 3rem;
+      animation: fadeUp .8s .2s ease both;
+    }
+
+    /* ── Install box ── */
+    .install-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 1rem;
+      animation: fadeUp .8s .3s ease both;
+    }
+
+    .install-box {
+      display: flex; align-items: center; gap: 1.25rem;
+      background: var(--panel); border: 1px solid var(--border);
+      padding: 1rem 1.5rem; border-radius: 14px;
+      box-shadow: 0 0 60px rgba(0,0,0,.6), 0 0 0 1px rgba(232,69,69,.1);
+    }
+
+    .install-box code {
+      font-family: 'Geist Mono', monospace;
+      font-size: 1rem; color: var(--text);
+      white-space: nowrap;
+    }
+
+    .copy-btn {
+      background: var(--accent); color: #fff; border: none;
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: .85rem;
+      padding: .5rem 1.1rem; border-radius: 8px; cursor: pointer;
+      transition: opacity .15s, transform .15s; white-space: nowrap;
+    }
+    .copy-btn:hover  { opacity: .82; transform: translateY(-2px); }
+    .copy-btn:active { transform: scale(.96); }
+
+    .install-note { font-size: .8rem; color: var(--dim); }
+
+    /* ── How it works ── */
+    .section {
+      position: relative; z-index: 1;
+      max-width: 1100px; margin: 0 auto;
+      padding: 6rem 2rem;
+    }
+
+    .section-eyebrow {
+      font-size: .72rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--accent); font-weight: 700; margin-bottom: 1rem;
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 800; letter-spacing: -.03em;
+      line-height: 1.1; margin-bottom: 4rem;
+    }
+
+    /* Steps */
+    .steps { display: flex; flex-direction: column; gap: 2.5rem; }
+
+    .step {
+      display: grid; grid-template-columns: 60px 1fr;
+      gap: 1.5rem; align-items: start;
+    }
+
+    .step-num {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; font-weight: 800;
+      background: rgba(232,69,69,.1); color: var(--accent);
+      border: 1px solid rgba(232,69,69,.2);
+      flex-shrink: 0;
+    }
+
+    .step-body h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: .5rem; }
+    .step-body p  { color: var(--dim); font-size: .95rem; line-height: 1.7; }
+
+    .step-body code {
+      font-family: 'Geist Mono', monospace; font-size: .88rem;
+      background: var(--panel); border: 1px solid var(--border);
+      padding: .15rem .45rem; border-radius: 5px; color: var(--accent);
+    }
+
+    /* ── Features grid ── */
+    .features {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem; margin-top: 2rem;
+    }
+
+    .feat-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2rem;
+      transition: border-color .25s, transform .25s;
+    }
+    .feat-card:hover {
+      border-color: rgba(232,69,69,.35);
+      transform: translateY(-4px);
+    }
+
+    .feat-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 1.25rem;
+      background: rgba(232,69,69,.08); border: 1px solid rgba(232,69,69,.15);
+    }
+
+    .feat-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: .65rem; }
+    .feat-card p  { color: var(--dim); font-size: .9rem; line-height: 1.7; }
+
+    /* ── Terminal mockup ── */
+    .terminal-mockup {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 40px 100px rgba(0,0,0,.6);
+      margin-top: 2rem;
+    }
+
+    .mock-bar {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .9rem 1.25rem;
+      background: rgba(255,255,255,.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .mock-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mock-dot.r { background: #ff5f57; }
+    .mock-dot.y { background: #febc2e; }
+    .mock-dot.g { background: #28c840; }
+    .mock-title {
+      margin-left: auto; margin-right: auto;
+      font-family: 'Geist Mono', monospace; font-size: .75rem; color: var(--dim);
+    }
+
+    .mock-body {
+      padding: 1.25rem 1.5rem;
+      font-family: 'Geist Mono', monospace; font-size: .82rem; line-height: 1.8;
+    }
+    .mc { color: #e84545; }
+    .mo { color: #a8ffcf; }
+    .md { color: var(--dim); }
+    .mw { color: #ffc043; }
+
+    /* ── CTA ── */
+    .cta-section {
+      position: relative; z-index: 1;
+      text-align: center; padding: 7rem 2rem;
+      border-top: 1px solid var(--border);
+    }
+    .cta-section h2 { font-size: clamp(2rem,4vw,3.5rem); font-weight: 800; letter-spacing: -.03em; margin-bottom: 1rem; }
+    .cta-section p  { color: var(--dim); max-width: 500px; margin: 0 auto 2.5rem; line-height: 1.7; }
+
+    /* ── Footer ── */
+    footer {
+      position: relative; z-index: 1;
+      text-align: center; padding: 2.5rem;
+      color: var(--dim); font-size: .8rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      nav { padding: 1rem 1.5rem; }
+      .nav-links { display: none; }
+      .install-box { flex-direction: column; }
+      .install-box code { font-size: .85rem; }
+      .step { grid-template-columns: 1fr; }
+      .step-num { width: 40px; height: 40px; font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo"><span class="red">🦞</span> OpenClaw Doctor</div>
+  <div class="nav-links">
+    <a href="#how">How It Works</a>
+    <a href="#features">Features</a>
+    <a href="#install">Install</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="badge-pill"><div class="dot"></div> v1.0 · Free & Open Source</div>
+  <h1>OpenClaw<br/>Broken?</h1>
+  <p class="hero-sub">
+    Install <strong>OpenClaw Doctor</strong> on any machine in under 10 seconds.
+    Instantly get a secure public URL to run shell commands, inspect health, 
+    and fix any configuration — no SSH, no passwords required.
+  </p>
+
+  <div class="install-wrap" id="install">
+    <div class="install-box">
+      <code id="install-cmd">curl -sSL https://ocd.imdaxia.com/install.sh | bash</code>
+      <button class="copy-btn" id="copy-btn" onclick="copyCmd()">Copy</button>
+    </div>
+    <span class="install-note">Compatible with macOS · Linux · Windows (WSL)</span>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="section-eyebrow">How it works</div>
+  <h2 class="section-title">From broken to<br/>back online in seconds</h2>
+
+  <div class="steps">
+    <div class="step fade-in">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Run the install command</h3>
+        <p>One <code>curl | bash</code> command installs all dependencies (Node.js, cloudflared binary) and starts the Doctor server on port <code>12222</code>. No configuration needed.</p>
+      </div>
+    </div>
+    <div class="step fade-in">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>A public URL appears in your terminal</h3>
+        <p>OpenClaw Doctor uses a <strong>Cloudflare Quick Tunnel</strong> to punch through NAT and firewalls — zero router config, zero domain setup. A unique <code>trycloudflare.com</code> URL is printed within ~5 seconds.</p>
+      </div>
+    </div>
+    <div class="step fade-in">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Share the URL + token with another AI or person</h3>
+        <p>Open the URL in any browser (or call the API from another AI agent) to get a live terminal. Every command runs directly on the remote machine. Fix config files, restart services, check logs — all from anywhere.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TERMINAL MOCKUP -->
+<div class="section" style="padding-top: 0;">
+  <div class="terminal-mockup fade-in">
+    <div class="mock-bar">
+      <div class="mock-dot r"></div>
+      <div class="mock-dot y"></div>
+      <div class="mock-dot g"></div>
+      <div class="mock-title">openclaw-doctor — zsh</div>
+    </div>
+    <div class="mock-body">
+      <span class="md">$ curl -sSL https://ocd.imdaxia.com/install.sh | bash</span><br/>
+      <span class="mo">🦞 OpenClaw Doctor — Initializing...</span><br/>
+      <span class="mo">✅ Node.js 22.x found</span><br/>
+      <span class="mo">📦 Installing dependencies...</span><br/>
+      <span class="mo">🚀 Starting Cloudflare tunnel → localhost:12222</span><br/>
+      <br/>
+      <span style="color:#fff;font-weight:600">╔═══════════════════════════════════════════════════════╗</span><br/>
+      <span style="color:#fff;font-weight:600">║          ✅ OPENCLAW DOCTOR IS ONLINE                  ║</span><br/>
+      <span style="color:#fff;font-weight:600">║  🌐 Public URL : https://orange-tiger.trycloudflare.com║</span><br/>
+      <span style="color:#fff;font-weight:600">║  🔐 Token      : a3f9d2e1b4c7...                       ║</span><br/>
+      <span style="color:#fff;font-weight:600">╚═══════════════════════════════════════════════════════╝</span><br/>
+      <br/>
+      <span class="md"># Now share the URL + token to access this machine remotely</span>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section" id="features" style="padding-top: 4rem;">
+  <div class="section-eyebrow">Features</div>
+  <h2 class="section-title">Everything you need<br/>to fix a broken agent</h2>
+
+  <div class="features">
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🌐</div>
+      <h3>No SSH Required</h3>
+      <p>Access any machine via a simple HTTPS URL. No user accounts, no key exchange, no open firewall ports.</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🔐</div>
+      <h3>Token-Protected</h3>
+      <p>Every session is protected by a randomly generated 128-bit token. Only people (or AI agents) with the token can execute commands.</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🩺</div>
+      <h3>OpenClaw Health Panel</h3>
+      <p>Runs <code>openclaw status</code> automatically and displays gateway state, active agents, sessions, memory, and security warnings in a clean dashboard.</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">⚡</div>
+      <h3>Full Shell Access</h3>
+      <p>Execute any shell command, read and write files, list directories — your full CLI toolkit over HTTPS.</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🤖</div>
+      <h3>AI Agent-Friendly API</h3>
+      <p>Clean JSON REST API. Any AI agent can call <code>POST /api/exec</code> with a command and get structured <code>stdout</code>, <code>stderr</code>, and exit code back.</p>
+    </div>
+    <div class="feat-card fade-in">
+      <div class="feat-icon">🚇</div>
+      <h3>Cloudflare Tunnel</h3>
+      <p>Powered by Cloudflare's free Quick Tunnel service. Works behind NAT, VPNs, and firewalls with no configuration whatsoever.</p>
+    </div>
+  </div>
+</section>
+
+<!-- API DOCS -->
+<section class="section" style="padding-top: 2rem;">
+  <div class="section-eyebrow">API Reference</div>
+  <h2 class="section-title fade-in">Designed for AI agents</h2>
+
+  <div class="terminal-mockup fade-in">
+    <div class="mock-bar">
+      <div class="mock-dot r"></div>
+      <div class="mock-dot y"></div>
+      <div class="mock-dot g"></div>
+      <div class="mock-title">API · application/json</div>
+    </div>
+    <div class="mock-body">
+      <span class="md"># Check if the server is alive (no auth)</span><br/>
+      <span class="mc">GET</span>  <span class="mo">/api/ping</span><br/>
+      <br/>
+      <span class="md"># Get full openclaw status output</span><br/>
+      <span class="mc">GET</span>  <span class="mo">/api/status</span>  <span class="md">x-doctor-token: &lt;token&gt;</span><br/>
+      <br/>
+      <span class="md"># Execute a shell command</span><br/>
+      <span class="mc">POST</span> <span class="mo">/api/exec</span>   <span class="md">x-doctor-token: &lt;token&gt;</span><br/>
+      <span class="md">Body: { "cmd": "openclaw restart", "cwd": "/home/user" }</span><br/>
+      <span class="md">→    { "stdout": "...", "stderr": "...", "code": 0 }</span><br/>
+      <br/>
+      <span class="md"># Read a file</span><br/>
+      <span class="mc">GET</span>  <span class="mo">/api/files/read?filePath=/path/to/file</span>  <span class="md">x-doctor-token: &lt;token&gt;</span><br/>
+      <br/>
+      <span class="md"># Write / create a file</span><br/>
+      <span class="mc">POST</span> <span class="mo">/api/files/write</span><br/>
+      <span class="md">Body: { "filePath": "/path/to/file", "content": "..." }</span><br/>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="cta">
+  <h2>Your claw is one<br/>command away from recovery.</h2>
+  <p>OpenClaw Doctor is free, open-source, and designed to save your sanity when OpenClaw decides to break at the worst possible moment.</p>
+  <div class="install-box" style="display:inline-flex; margin: 0 auto;">
+    <code>curl -sSL https://ocd.imdaxia.com/install.sh | bash</code>
+    <button class="copy-btn" onclick="copyCmd()">Copy</button>
+  </div>
+</section>
+
+<footer>
+  &copy; 2026 OpenClaw Doctor · Open Source · Powered by Cloudflare Tunnels
+  <br/><span style="font-size:.7rem">Not affiliated with OpenClaw AI.</span>
+</footer>
+
+<script>
+  // Copy install command
+  function copyCmd() {
+    const cmd = 'curl -sSL https://ocd.imdaxia.com/install.sh | bash';
+    navigator.clipboard.writeText(cmd).catch(() => {});
+    const btn = document.getElementById('copy-btn');
+    if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+    // also update CTA button if triggered from there
+    document.querySelectorAll('.copy-btn').forEach(b => {
+      const orig = b.textContent;
+      if (orig === 'Copy') { b.textContent = '✓ Copied'; setTimeout(() => b.textContent = 'Copy', 2000); }
+    });
+  }
+
+  // Intersection observer for fade-in
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.12 });
+
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "openclaw-doctor",
+  "version": "1.0.0",
+  "description": "Remote diagnostic & repair tool for OpenClaw AI agent",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "openclaw",
+    "remote",
+    "diagnostic",
+    "cloudflare",
+    "tunnel"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.15.0",
+    "body-parser": "^2.2.2",
+    "cloudflared": "^0.7.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}
