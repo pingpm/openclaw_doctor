@@ -1,17 +1,29 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/zh", "destination": "/website/index.zh.html" },
-    { "source": "/", "destination": "/website/index.html" }
-  ],
-  "headers": [
+  "builds": [
     {
-      "source": "/install.sh",
-      "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
+      "src": "website/**",
+      "use": "@vercel/static"
     },
     {
-      "source": "/server.js",
-      "headers": [{ "key": "Content-Type", "value": "application/javascript; charset=utf-8" }]
+      "src": "install.sh",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "server.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
+  ],
+  "routes": [
+    { "src": "/install.sh", "dest": "/install.sh", "headers": { "Content-Type": "text/plain; charset=utf-8" } },
+    { "src": "/server.js", "dest": "/server.js", "headers": { "Content-Type": "application/javascript; charset=utf-8" } },
+    { "src": "/public/(.*)", "dest": "/public/$1" },
+    { "src": "/zh", "dest": "/website/index.zh.html" },
+    { "src": "/", "dest": "/website/index.html" },
+    { "src": "/(.*)", "dest": "/website/$1" }
   ]
 }
