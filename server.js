@@ -1,13 +1,14 @@
 /**
  * OpenClaw Doctor - Remote Diagnostic Server
- * Starts a local HTTP server and creates a Cloudflare tunnel to expose it publicly.
- * Provides a web terminal + OpenClaw health dashboard accessible from anywhere.
+ *
+ * GET  /          (no token)  → serves web terminal UI (browser)
+ * GET  /?token=xx             → returns AI-GUIDE.md so AI knows how to operate
+ * POST /?token=xx             → executes a shell command, returns JSON result
  */
 
 const express = require('express');
 const { bin, install } = require('cloudflared');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
 const { exec, spawn } = require('child_process');
@@ -16,54 +17,61 @@ const os = require('os');
 
 const app = express();
 
-// Config
-const PORT = parseInt(process.env.PORT || process.env.OCD_PORT) || 12222;
+const PORT  = parseInt(process.env.PORT || process.env.OCD_PORT) || 12222;
 const TOKEN = process.env.TOKEN || crypto.randomBytes(16).toString('hex');
-const STATE_FILE = path.join(__dirname, '.doctor-state.json');
+const STATE_FILE  = path.join(__dirname, '.doctor-state.json');
+const GUIDE_FILE  = path.join(__dirname, 'public', 'AI-GUIDE.md');
 
 app.use(cors());
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: '10mb' }));
 
-// ─── Auth Middleware ─────────────────────────────────────────────────────────
-const auth = (req, res, next) => {
+// ─── Auth helper ──────────────────────────────────────────────────────────────
+function checkToken(req) {
   const t = req.headers['x-doctor-token'] || req.query.token;
-  if (t === TOKEN) return next();
-  res.status(401).json({ error: 'Unauthorized. Invalid or missing token.' });
-};
+  return t === TOKEN;
+}
 
-// ─── Public Endpoints ─────────────────────────────────────────────────────────
-app.get('/api/ping', (req, res) => {
-  res.json({
-    status: 'alive',
-    app: 'openclaw-doctor',
-    version: '1.0.0',
-    guide: '/AI-GUIDE.md',
-    message: 'You are connected to a remote machine via OpenClaw Doctor. Read /AI-GUIDE.md first to understand how to operate this machine.'
+// ─── GET / ────────────────────────────────────────────────────────────────────
+// No token  → serve the browser UI (index.html)
+// With token → return AI-GUIDE.md so the AI knows how to operate this machine
+app.get('/', (req, res) => {
+  if (!req.query.token) {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+
+  if (!checkToken(req)) {
+    return res.status(401).type('text').send('Unauthorized. Invalid token.');
+  }
+
+  // Return the guide as plain text so any AI can read it directly
+  fs.readFile(GUIDE_FILE, 'utf8', (err, data) => {
+    if (err) {
+      return res.type('text').send(
+        '# OpenClaw Doctor\n\nSend POST requests to this URL with JSON body:\n' +
+        '{"cmd":"your shell command"}\n\nInclude token as query param: ?token=TOKEN\n\n' +
+        'Response: {"stdout":"...","stderr":"...","code":0}'
+      );
+    }
+    res.type('text/markdown').send(data);
   });
 });
 
-// ─── Status Endpoint ──────────────────────────────────────────────────────────
-app.get('/api/status', auth, (req, res) => {
-  const mode = req.query.mode || 'status';
-  const cmd = mode === 'deep' ? 'openclaw status --deep' : 'openclaw status';
+// ─── POST / ───────────────────────────────────────────────────────────────────
+// Execute a shell command on this machine.
+// Body: { "cmd": "shell command", "cwd": "/optional/path", "timeout": 30000 }
+// Response: { "stdout": "...", "stderr": "...", "code": 0 }
+app.post('/', (req, res) => {
+  if (!checkToken(req)) {
+    return res.status(401).json({ error: 'Unauthorized. Pass token as ?token=TOKEN query param.' });
+  }
 
-  exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
-    res.json({
-      command: cmd,
-      stdout: stdout || '',
-      stderr: stderr || '',
-      code: error ? (error.code ?? 1) : 0,
-      timestamp: new Date().toISOString()
-    });
-  });
-});
+  const { cmd, cwd, timeout = 30000 } = req.body || {};
 
-// ─── Execute Command ──────────────────────────────────────────────────────────
-app.post('/api/exec', auth, (req, res) => {
-  const { cmd, cwd, timeout = 30000 } = req.body;
   if (!cmd || typeof cmd !== 'string') {
-    return res.status(400).json({ error: 'cmd (string) is required' });
+    return res.status(400).json({
+      error: 'Request body must be JSON with a "cmd" field.',
+      example: { cmd: 'openclaw status', cwd: '/optional/path', timeout: 30000 }
+    });
   }
 
   const workDir = cwd || os.homedir();
@@ -73,150 +81,78 @@ app.post('/api/exec', auth, (req, res) => {
     res.json({
       stdout: stdout || '',
       stderr: stderr || '',
-      code: error ? (error.code ?? 1) : 0,
+      code:   error ? (error.code ?? 1) : 0,
       signal: error?.signal || null
     });
   });
 });
 
-// ─── File Read ────────────────────────────────────────────────────────────────
-app.get('/api/files/read', auth, (req, res) => {
-  const { filePath } = req.query;
-  if (!filePath) return res.status(400).json({ error: 'filePath query param is required' });
+// ─── Static files (web UI assets) ────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, 'public')));
 
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ filePath, data, size: Buffer.byteLength(data) });
-  });
-});
-
-// ─── File Write ───────────────────────────────────────────────────────────────
-app.post('/api/files/write', auth, (req, res) => {
-  const { filePath, content } = req.body;
-  if (!filePath || content === undefined) {
-    return res.status(400).json({ error: 'filePath and content are required' });
-  }
-
-  // Ensure directory exists
-  const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true });
-
-  fs.writeFile(filePath, content, 'utf8', (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true, filePath, size: Buffer.byteLength(content) });
-  });
-});
-
-// ─── File List ────────────────────────────────────────────────────────────────
-app.get('/api/files/list', auth, (req, res) => {
-  const { dirPath = os.homedir() } = req.query;
-
-  fs.readdir(dirPath, { withFileTypes: true }, (err, entries) => {
-    if (err) return res.status(500).json({ error: err.message });
-    const items = entries.map(e => ({
-      name: e.name,
-      type: e.isDirectory() ? 'dir' : 'file',
-      path: path.join(dirPath, e.name)
-    }));
-    res.json({ dirPath, items });
-  });
-});
-
-// ─── State ────────────────────────────────────────────────────────────────────
+// ─── State persistence ────────────────────────────────────────────────────────
 let tunnelUrl = '';
-let tunnelProcess = null;
 
 function saveState(url) {
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify({
-      tunnelUrl: url,
-      token: TOKEN,
-      port: PORT,
+      tunnelUrl: url, token: TOKEN, port: PORT,
       startedAt: new Date().toISOString()
     }, null, 2));
-  } catch (e) { /* ignore */ }
+  } catch (_) {}
 }
 
-// ─── Cloudflared Binary ───────────────────────────────────────────────────────
+// ─── Cloudflared install ──────────────────────────────────────────────────────
 async function ensureCloudflared() {
-  if (fs.existsSync(bin)) {
-    const stat = fs.statSync(bin);
-    if (stat.size > 0) return;
-  }
+  if (fs.existsSync(bin) && fs.statSync(bin).size > 0) return;
 
   console.log('📦 cloudflared not found — installing...');
   try {
     await install(bin);
-    console.log('✅ cloudflared installed (official).');
+    console.log('✅ cloudflared installed.');
     return;
-  } catch (err) {
+  } catch (_) {
     console.warn('⚠️  Official install failed, trying mirror...');
   }
 
-  // Mirror fallback (for China / restricted networks)
-  const platform = process.platform;
-  const arch = process.arch;
-  let binaryName = '';
+  const { platform, arch } = process;
+  if (platform === 'darwin') throw new Error('brew install cloudflared');
 
-  if (platform === 'linux') {
-    binaryName = arch === 'arm64' ? 'cloudflared-linux-arm64' : 'cloudflared-linux-amd64';
-  } else if (platform === 'win32') {
-    binaryName = arch === 'x64' ? 'cloudflared-windows-amd64.exe' : 'cloudflared-windows-386.exe';
-  } else {
-    // macOS: best effort with official only
-    throw new Error('Please manually install cloudflared: brew install cloudflared');
-  }
+  const name = platform === 'win32'
+    ? (arch === 'x64' ? 'cloudflared-windows-amd64.exe' : 'cloudflared-windows-386.exe')
+    : (arch === 'arm64' ? 'cloudflared-linux-arm64' : 'cloudflared-linux-amd64');
 
-  const mirrorUrl = `https://ghproxy.net/https://github.com/cloudflare/cloudflared/releases/latest/download/${binaryName}`;
-  const axios = require('axios');
+  const axios  = require('axios');
   const writer = fs.createWriteStream(bin);
-  const resp = await axios({ method: 'get', url: mirrorUrl, responseType: 'stream' });
+  const resp   = await axios({ method: 'get', responseType: 'stream',
+    url: `https://ghproxy.net/https://github.com/cloudflare/cloudflared/releases/latest/download/${name}` });
   resp.data.pipe(writer);
-  await new Promise((resolve, reject) => {
-    writer.on('finish', resolve);
-    writer.on('error', reject);
-  });
+  await new Promise((ok, fail) => { writer.on('finish', ok); writer.on('error', fail); });
   fs.chmodSync(bin, '755');
   console.log('✅ cloudflared installed (mirror).');
 }
 
-// ─── Start Tunnel ─────────────────────────────────────────────────────────────
+// ─── Tunnel ───────────────────────────────────────────────────────────────────
 function startTunnel(localPort) {
   return new Promise((resolve, reject) => {
-    const absbin = path.resolve(bin);
-    console.log(`🚀 Starting Cloudflare tunnel → localhost:${localPort}`);
-
-    tunnelProcess = spawn(absbin, ['tunnel', '--url', `http://localhost:${localPort}`], {
+    const proc = spawn(path.resolve(bin), ['tunnel', '--url', `http://localhost:${localPort}`], {
       shell: process.platform === 'win32'
     });
-
     let resolved = false;
 
-    tunnelProcess.stderr.on('data', (data) => {
-      const out = data.toString();
-      const match = out.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
-      if (match && !resolved) {
+    proc.stderr.on('data', (data) => {
+      const m = data.toString().match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+      if (m && !resolved) {
         resolved = true;
-        tunnelUrl = match[0];
+        tunnelUrl = m[0];
         saveState(tunnelUrl);
         resolve(tunnelUrl);
       }
     });
-
-    tunnelProcess.on('exit', (code) => {
-      console.log(`ℹ️  Tunnel exited (code ${code})`);
-      tunnelUrl = '';
-    });
-
-    tunnelProcess.on('error', (err) => {
-      if (!resolved) reject(err);
-    });
-
+    proc.on('exit',  (code) => { console.log(`ℹ️  Tunnel exited (${code})`); tunnelUrl = ''; });
+    proc.on('error', (err)  => { if (!resolved) reject(err); });
     setTimeout(() => {
-      if (!resolved) {
-        try { tunnelProcess.kill(); } catch (_) {}
-        reject(new Error('Tunnel startup timed out (30s)'));
-      }
+      if (!resolved) { try { proc.kill(); } catch (_) {} reject(new Error('Tunnel timed out')); }
     }, 30000);
   });
 }
@@ -226,20 +162,23 @@ async function init() {
   await ensureCloudflared();
 
   app.listen(PORT, async () => {
-    console.log(`\n🩺 OpenClaw Doctor running → http://localhost:${PORT}`);
-    console.log(`🔐 Admin token: ${TOKEN}\n`);
+    console.log(`\n🩺 OpenClaw Doctor → http://localhost:${PORT}`);
+    console.log(`🔐 Token: ${TOKEN}\n`);
 
     try {
       const url = await startTunnel(PORT);
+      const full = `${url}/?token=${TOKEN}`;
       console.log('\n╔═══════════════════════════════════════════════════════╗');
-      console.log('║          ✅ OPENCLAW DOCTOR IS ONLINE                  ║');
+      console.log('║       ✅  OPENCLAW DOCTOR IS ONLINE                    ║');
       console.log(`║  🌐 Public URL : ${url.padEnd(37)}║`);
       console.log(`║  🔐 Token      : ${TOKEN.substring(0, 37).padEnd(37)}║`);
-      console.log(`║  🔗 Full link  : ${(url + '/?token=' + TOKEN).substring(0, 37)}...║`);
-      console.log('╚═══════════════════════════════════════════════════════╝\n');
+      console.log(`║  🔗 Full link  : ${full.substring(0, 37).padEnd(37)}║`);
+      console.log('╚═══════════════════════════════════════════════════════╝');
+      console.log('\n  → Give the Full link to an AI agent to start remote repair.');
+      console.log('  → Open the Full link in a browser for the visual terminal.\n');
     } catch (err) {
       console.error(`❌ Tunnel failed: ${err.message}`);
-      console.log(`⚠️  Control panel is local-only: http://localhost:${PORT}/?token=${TOKEN}`);
+      console.log(`⚠️  Local only: http://localhost:${PORT}/?token=${TOKEN}`);
     }
   });
 }
