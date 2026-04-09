@@ -34,7 +34,13 @@ const auth = (req, res, next) => {
 
 // ─── Public Endpoints ─────────────────────────────────────────────────────────
 app.get('/api/ping', (req, res) => {
-  res.json({ status: 'alive', app: 'openclaw-doctor', version: '1.0.0' });
+  res.json({
+    status: 'alive',
+    app: 'openclaw-doctor',
+    version: '1.0.0',
+    guide: '/AI-GUIDE.md',
+    message: 'You are connected to a remote machine via OpenClaw Doctor. Read /AI-GUIDE.md first to understand how to operate this machine.'
+  });
 });
 
 // ─── Status Endpoint ──────────────────────────────────────────────────────────
