@@ -1,10 +1,16 @@
 # OpenClaw Doctor 🦞
 
-Remote diagnostic & repair tool for [OpenClaw](https://openclaw.ai) AI agent installations.
+> Remote shell access over HTTPS — share a link with any AI agent to diagnose and fix any machine remotely.
 
-**Problem**: OpenClaw breaks after updates (bad config files, service crashes, etc.) and you need to remotely diagnose and fix it — without SSH, without knowing passwords.
+**OpenClaw Doctor** installs on a broken machine in under 10 seconds, creates a Cloudflare tunnel, and gives you (or an AI agent) full shell access via a secure public URL. No SSH, no passwords, no firewall config.
 
-**Solution**: Run one command. Get a public URL. Fix everything from any browser or AI agent.
+---
+
+## Screenshots
+
+| Control Panel | Audit Log |
+|---|---|
+| ![Control Panel](pannel.png) | ![Audit Log](opreation_log.png) |
 
 ---
 
@@ -17,58 +23,108 @@ curl -sSL https://ocd.imdaxia.com/install.sh | bash
 Within ~15 seconds you'll see:
 
 ```
-╔═════════════════════════════════════════════════════════╗
-║       ✅  OPENCLAW DOCTOR IS ONLINE                      ║
-╠═════════════════════════════════════════════════════════╣
-║  🌐 Public URL : https://orange-tiger.trycloudflare.com  ║
-║  🔐 Token      : a3f9d2e1b4c7...                         ║
-║  🔗 Full Access: https://orange-tiger.trycloudflare.com/?token=... ║
-╚═════════════════════════════════════════════════════════╝
+✅  OPENCLAW DOCTOR IS ONLINE
+─────────────────────────────────────────────────────────
+🌐  Public URL  : https://orange-tiger.trycloudflare.com
+🔐  Token       : a3f9d2e1b4c7...
+🔗  Full link   : https://orange-tiger.trycloudflare.com/?token=a3f9...
+─────────────────────────────────────────────────────────
+→  Give the Full link to an AI agent to start remote repair.
+→  Open the Public URL in a browser for the visual dashboard.
+→  To stop: bash ~/.openclaw-doctor/install.sh stop
 ```
 
-Share the **Full Access** link with another AI agent or open it in your browser.
+Send the **Full link** to any AI tool (Kiro, Cursor, Claude, Trae, Antigravity…) and describe your problem:
+
+> "Help me fix OpenClaw not starting. Remote link: https://xxxx.trycloudflare.com/?token=..."
+
+The AI reads the built-in guide and starts working immediately.
 
 ---
 
-## What it does
-
-1. **Starts a local Express server** on port `12222` (configurable via `OCD_PORT`)
-2. **Creates a Cloudflare Quick Tunnel** — a free, temporary public HTTPS URL, no account needed
-3. **Serves a web terminal dashboard** at the tunnel URL
-4. **Protects everything** with a randomly generated token
-
----
-
-## API Reference
-
-All authenticated routes require `x-doctor-token: <token>` header (or `?token=<token>` query param).
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET`  | `/api/ping` | ❌ | Health check |
-| `GET`  | `/api/status` | ✅ | Run `openclaw status` |
-| `POST` | `/api/exec` | ✅ | Execute shell command |
-| `GET`  | `/api/files/read` | ✅ | Read file contents |
-| `POST` | `/api/files/write` | ✅ | Write/create a file |
-| `GET`  | `/api/files/list` | ✅ | List directory contents |
-
-### Execute Command Example
+## Stop / Restart
 
 ```bash
-curl -X POST https://YOUR-TUNNEL-URL/api/exec \
-  -H "x-doctor-token: YOUR-TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"cmd": "openclaw status"}'
+# Stop the service
+bash ~/.openclaw-doctor/install.sh stop
+
+# Or via curl (re-run also stops the old instance first)
+curl -sSL https://ocd.imdaxia.com/install.sh | bash -s stop
+```
+
+Re-running the install command automatically stops the old instance and starts a fresh one with a new token.
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| 🌐 **No SSH** | HTTPS URL only — no user accounts, no key exchange, no open ports |
+| 🔐 **Token auth** | 128-bit random token per session; restart anytime to invalidate |
+| 🩺 **Health dashboard** | Auto-runs `openclaw status`, displays gateway, agents, sessions visually |
+| ⚡ **Full shell access** | Any command, same permissions as the local user |
+| 🤖 **AI-ready** | Built-in Markdown guide returned on GET — AI starts working immediately |
+| 🚇 **Cloudflare tunnel** | Free Quick Tunnel, works behind NAT/VPN/firewall, zero config |
+| 📋 **Audit log** | Every command + output recorded with timestamp and caller info |
+| 🌍 **Bilingual UI** | Chinese/English toggle, defaults to Chinese |
+| 🖥️ **Web terminal** | Browser terminal with history, color output, fullscreen overlay |
+| ⏳ **Async tasks** | Long-running commands via `"async": true` + poll endpoint |
+
+---
+
+## How It Works
+
+1. **Install** — one `curl | bash` installs Node.js deps and starts the server on port `12222`
+2. **Tunnel** — Cloudflare Quick Tunnel creates a public HTTPS URL automatically
+3. **Share** — send the full link (with token) to an AI agent or open in browser
+
+---
+
+## API
+
+All endpoints require `?token=TOKEN` query parameter.
+
+### Core operations
+
+```
+# GET — returns the AI operation guide (no User-Agent header)
+GET https://xxxx.trycloudflare.com/?token=TOKEN
+
+# POST — run any shell command
+POST https://xxxx.trycloudflare.com/?token=TOKEN
+Content-Type: application/json
+
+{"cmd": "openclaw status"}
 ```
 
 Response:
 ```json
-{
-  "stdout": "...",
-  "stderr": "",
-  "code": 0
-}
+{ "stdout": "...", "stderr": "...", "code": 0 }
 ```
+
+Optional POST fields: `"cwd"`, `"timeout"` (ms), `"async": true`
+
+### Other endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET`  | `/status` | Run `openclaw status`, return output |
+| `GET`  | `/audit` | Full audit log (newest first) |
+| `DELETE` | `/audit` | Clear audit log |
+| `GET`  | `/info` | Session info (token, tunnel URL, port) |
+| `POST` | `/restart` | Regenerate token, invalidate old link |
+| `GET`  | `/task/:id` | Poll async task result |
+
+---
+
+## Security
+
+- Token is randomly generated each session (128-bit entropy)
+- Tunnel URL is ephemeral — changes on every restart
+- **Only share the full link with trusted people or AI agents** — it grants full shell access
+- When done: stop the service or use `/restart` to invalidate the current token
+- All operations are logged to `~/.openclaw-doctor/audit.log` for review
 
 ---
 
@@ -76,13 +132,15 @@ Response:
 
 ```
 openclaw_doctor/
-├── server.js          # Main server (Express + Cloudflare tunnel)
-├── install.sh         # One-click installer
+├── server.js          # Express server + Cloudflare tunnel
+├── install.sh         # One-click installer (also handles stop/update)
 ├── package.json
 ├── public/
-│   └── index.html     # Remote terminal web dashboard
+│   ├── index.html     # Dashboard UI (bilingual, web terminal, audit log)
+│   └── AI-GUIDE.md    # Operation guide returned to AI agents on GET
 └── website/
-    └── index.html     # Official landing page (deploy to ocd.imdaxia.com)
+    ├── index.html     # Official landing page (EN)
+    └── index.zh.html  # Official landing page (ZH)
 ```
 
 ---
@@ -93,24 +151,11 @@ openclaw_doctor/
 git clone https://github.com/yourname/openclaw-doctor
 cd openclaw-doctor
 npm install
-OCD_PORT=12222 TOKEN=mysecrettoken node server.js
+PORT=12222 TOKEN=mysecrettoken node server.js
 ```
-
----
-
-## Security Notes
-
-- The admin token is randomly generated each session (128-bit entropy)
-- The tunnel URL is ephemeral — it changes every restart
-- This tool gives **full shell access** to the remote machine — only share the link with trusted parties
-- Consider keeping `OCD_PORT` firewalled locally; the tunnel handles external access
 
 ---
 
 ## License
 
-MIT
-
----
-
-[中文说明 (README.zh.md)](./README.zh.md)
+MIT · [中文说明 (README.zh.md)](./README.zh.md)

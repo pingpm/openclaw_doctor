@@ -32,6 +32,7 @@ if [ "${1}" = "stop" ]; then
   else
     echo -e "${YELLOW}[ocd] ⚠️  No running instance found (no PID file).${NC}"
   fi
+  pkill -f "cloudflared tunnel --url http://localhost:${PORT}" 2>/dev/null || true
   exit 0
 fi
 
@@ -82,6 +83,8 @@ if [ -f "$PID_FILE" ]; then
   fi
   rm -f "$PID_FILE"
 fi
+# Also clean up any orphaned cloudflared tunnels on port $PORT
+pkill -f "cloudflared tunnel --url http://localhost:${PORT}" 2>/dev/null || true
 
 # ── Ensure Node.js ────────────────────────────────────────────────────────────
 ensure_node

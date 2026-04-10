@@ -1,82 +1,130 @@
 # OpenClaw Doctor 🦞
 
-> OpenClaw 坏了？一條命令，10 秒搞定。
+> 通过 HTTPS 实现远程 Shell 访问——把链接发给任意 AI 工具，即可远程诊断和修复任意电脑。
 
-**OpenClaw Doctor** 是专为 [OpenClaw](https://openclaw.ai) AI 智能体设计的远程诊断与修复工具。每次 OpenClaw 版本更新后出现配置错误、服务崩溃等问题时，只需在故障机器上运行一条命令，即可获得一个公网访问地址——无需 SSH，无需用户名密码，另一个 AI 或协作者通过这个地址即可远程操控修复。
+**OpenClaw Doctor** 在故障电脑上 10 秒内完成安装，自动创建 Cloudflare 隧道，通过安全的公网 URL 提供完整的 Shell 访问权限。无需 SSH、无需密码、无需配置防火墙。
 
 ---
 
-## 快速安装
+## 产品截图
+
+| 操作面板 | 审计日志 |
+|---|---|
+| ![操作面板](pannel.png) | ![审计日志](opreation_log.png) |
+
+---
+
+## 一键安装
 
 ```bash
 curl -sSL https://ocd.imdaxia.com/install.sh | bash
 ```
 
-约 15 秒后你会看到：
+约 15 秒后终端显示：
 
 ```
-╔═════════════════════════════════════════════════════════╗
-║       ✅  OPENCLAW DOCTOR 已在线                        ║
-╠═════════════════════════════════════════════════════════╣
-║  🌐 公网地址 : https://amber-sunset.trycloudflare.com   ║
-║  🔐 访问令牌 : a3f9d2e1b4c7...                          ║
-║  🔗 完整链接 : https://amber-sunset.trycloudflare.com/?token=... ║
-╚═════════════════════════════════════════════════════════╝
+✅  OPENCLAW DOCTOR 已在线
+─────────────────────────────────────────────────────────
+🌐  公网地址 : https://orange-tiger.trycloudflare.com
+🔐  访问令牌 : a3f9d2e1b4c7...
+🔗  完整链接 : https://orange-tiger.trycloudflare.com/?token=a3f9...
+─────────────────────────────────────────────────────────
+→  将完整链接发给 AI 工具开始远程修复
+→  在浏览器中打开公网地址查看可视化面板
+→  停止服务: bash ~/.openclaw-doctor/install.sh stop
 ```
 
-将**完整链接**发给另一个 AI 智能体，或在浏览器中打开。
+将**完整链接**发给任意 AI 工具（Kiro、Cursor、Claude、Trae、Antigravity 等），描述你的问题：
+
+> "帮我修复 OpenClaw 无法启动的问题，远程链接：https://xxxx.trycloudflare.com/?token=..."
+
+AI 读取内置操作指南后立即开始工作，无需额外说明。
+
+---
+
+## 停止 / 重启
+
+```bash
+# 停止服务
+bash ~/.openclaw-doctor/install.sh stop
+
+# 或通过 curl（重新安装时会自动先停止旧实例）
+curl -sSL https://ocd.imdaxia.com/install.sh | bash -s stop
+```
+
+重新执行安装命令会自动停止旧实例并以新 token 启动新实例。
+
+---
+
+## 功能特性
+
+| 特性 | 说明 |
+|------|------|
+| 🌐 **无需 SSH** | 仅需 HTTPS 链接，无需用户名密码、无需开放端口 |
+| 🔐 **令牌认证** | 每次会话生成 128 位随机令牌，随时重启更换 |
+| 🩺 **健康面板** | 自动运行 `openclaw status`，可视化展示网关、Agent、会话状态 |
+| ⚡ **完整 Shell** | 执行任意命令，权限与本地用户相同 |
+| 🤖 **AI 开箱即用** | GET 请求返回 Markdown 操作指南，AI 立即开始工作 |
+| 🚇 **Cloudflare 隧道** | 免费快速隧道，穿透 NAT/VPN/防火墙，零配置 |
+| 📋 **操作审计** | 每条命令及返回结果记录时间戳和调用方，可随时审查 |
+| 🌍 **中英双语** | 界面支持中英文切换，默认中文 |
+| 🖥️ **Web 终端** | 内置浏览器终端，支持命令历史、彩色输出、全屏模式 |
+| ⏳ **异步任务** | 长时间命令支持 `"async": true` + 轮询接口 |
 
 ---
 
 ## 工作原理
 
-1. **启动本地服务** — 在端口 `12222`（可通过 `OCD_PORT` 环境变量修改）启动一个受 Token 保护的 Express 服务。
-2. **Cloudflare 内网穿透** — 自动下载并启动 `cloudflared`，创建一个免费的公网 HTTPS 隧道，穿透 NAT 和防火墙，无需任何账号或路由器配置。
-3. **共享链接 + Token** — 将终端中打印的完整链接分享给 AI 或协作者，即可获得远程终端访问权限。
+1. **安装** — 一条 `curl | bash` 命令安装 Node.js 依赖并在端口 `12222` 启动服务
+2. **建隧道** — Cloudflare 快速隧道自动生成公网 HTTPS 地址
+3. **分享** — 将完整链接（含 token）发给 AI 工具或在浏览器中打开
 
 ---
 
 ## API 接口
 
-所有受保护的接口需要在请求头中携带 `x-doctor-token: <token>`，或在 URL 中附加 `?token=<token>` 查询参数。
+所有接口均需 `?token=TOKEN` 查询参数。
 
-| 方法 | 路径 | 是否需要认证 | 说明 |
-|------|------|-------------|------|
-| `GET`  | `/api/ping` | ❌ | 存活检测 |
-| `GET`  | `/api/status` | ✅ | 执行 `openclaw status` |
-| `POST` | `/api/exec` | ✅ | 执行任意 Shell 命令 |
-| `GET`  | `/api/files/read` | ✅ | 读取文件内容 |
-| `POST` | `/api/files/write` | ✅ | 写入 / 创建文件 |
-| `GET`  | `/api/files/list` | ✅ | 列出目录内容 |
+### 核心操作
 
-### 执行命令示例
+```
+# GET — 返回 AI 操作指南（不要带 User-Agent 请求头）
+GET https://xxxx.trycloudflare.com/?token=TOKEN
 
-```bash
-# 执行 Shell 命令
-curl -X POST https://YOUR-TUNNEL-URL/api/exec \
-  -H "x-doctor-token: YOUR-TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"cmd": "openclaw status"}'
+# POST — 执行任意 Shell 命令
+POST https://xxxx.trycloudflare.com/?token=TOKEN
+Content-Type: application/json
 
-# 响应
-{
-  "stdout": "...",
-  "stderr": "",
-  "code": 0
-}
+{"cmd": "openclaw status"}
 ```
 
-```bash
-# 读取配置文件
-curl "https://YOUR-TUNNEL-URL/api/files/read?filePath=/path/to/config.json" \
-  -H "x-doctor-token: YOUR-TOKEN"
-
-# 写入修复后的配置
-curl -X POST https://YOUR-TUNNEL-URL/api/files/write \
-  -H "x-doctor-token: YOUR-TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"filePath": "/path/to/config.json", "content": "{...}"}'
+响应：
+```json
+{ "stdout": "...", "stderr": "...", "code": 0 }
 ```
+
+POST 可选字段：`"cwd"`、`"timeout"`（毫秒）、`"async": true`
+
+### 其他接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/status` | 运行 `openclaw status` 并返回输出 |
+| `GET` | `/audit` | 完整审计日志（最新在前） |
+| `DELETE` | `/audit` | 清空审计日志 |
+| `GET` | `/info` | 会话信息（token、隧道地址、端口） |
+| `POST` | `/restart` | 重新生成 token，旧链接立即失效 |
+| `GET` | `/task/:id` | 轮询异步任务结果 |
+
+---
+
+## 安全说明
+
+- Token 每次会话随机生成（128 位熵）
+- 隧道地址是临时的，每次重启都会变化
+- **完整链接（含 token）拥有完整 Shell 权限，请勿发给陌生人**
+- 操作完成后请停止服务或使用 `/restart` 更换 token
+- 所有操作记录在 `~/.openclaw-doctor/audit.log`，可随时审查
 
 ---
 
@@ -84,17 +132,15 @@ curl -X POST https://YOUR-TUNNEL-URL/api/files/write \
 
 ```
 openclaw_doctor/
-├── server.js               # 核心服务（Express + Cloudflare 隧道）
-├── install.sh              # 一键安装脚本
+├── server.js          # Express 服务器 + Cloudflare 隧道
+├── install.sh         # 一键安装脚本（支持 stop/update）
 ├── package.json
-├── README.md               # 英文说明
-├── README.zh.md            # 中文说明（本文件）
-├── .gitignore
 ├── public/
-│   └── index.html          # 远程诊断控制台（部署在被控端）
+│   ├── index.html     # 仪表盘 UI（双语、Web 终端、审计日志）
+│   └── AI-GUIDE.md    # GET 请求返回给 AI 的操作指南
 └── website/
-    ├── index.html          # 官网（英文，部署到 ocd.imdaxia.com）
-    └── index.zh.html       # 官网（中文）
+    ├── index.html     # 官网（英文）
+    └── index.zh.html  # 官网（中文）
 ```
 
 ---
@@ -105,33 +151,11 @@ openclaw_doctor/
 git clone https://github.com/yourname/openclaw-doctor
 cd openclaw-doctor
 npm install
-OCD_PORT=12222 TOKEN=你的自定义token node server.js
+PORT=12222 TOKEN=mysecrettoken node server.js
 ```
 
 ---
 
-## 环境变量
+## 许可证
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `OCD_PORT` | `12222` | 本地服务端口 |
-| `TOKEN` | 随机生成 | 访问令牌（每次启动随机生成，也可手动指定） |
-
----
-
-## 安全说明
-
-- 每次启动自动生成 128 位随机 Token，无法猜测
-- 隧道 URL 是临时的，每次重启都会变化
-- 该工具提供**完整 Shell 访问权限**，请只将链接分享给可信任的 AI 或人员
-- 建议在本地防火墙层面屏蔽 `12222` 端口，通过隧道访问即可
-
----
-
-## License
-
-MIT
-
----
-
-[English README](./README.md)
+MIT · [English README](./README.md)

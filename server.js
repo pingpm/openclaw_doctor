@@ -25,9 +25,19 @@ let   TOKEN      = process.env.TOKEN || crypto.randomBytes(16).toString('hex');
 const STATE_FILE = path.join(__dirname, '.doctor-state.json');
 const GUIDE_FILE = path.join(__dirname, 'public', 'AI-GUIDE.md');
 const PID_FILE   = path.join(__dirname, 'doctor.pid');
+const AUDIT_FILE = path.join(__dirname, 'audit.log');
 
 // In-memory task store for long-running commands
 const tasks = new Map(); // id -> { status, stdout, stderr, code, startedAt }
+
+// ─── Audit logger ─────────────────────────────────────────────────────────────
+function auditLog(entry) {
+  const line = JSON.stringify({
+    ts:     new Date().toISOString(),
+    ...entry
+  }) + '\n';
+  fs.appendFile(AUDIT_FILE, line, () => {});
+}
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -101,33 +111,41 @@ app.post('/', (req, res) => {
   }
 
   const workDir = cwd || os.homedir();
+  const ua = req.headers['user-agent'] || '';
   console.log(`[exec] ${cmd}`);
 
   // Async mode: return task ID immediately, run in background
   if (isAsync) {
     const id = crypto.randomBytes(8).toString('hex');
-    tasks.set(id, { status: 'running', stdout: '', stderr: '', code: null, startedAt: Date.now() });
+    const startedAt = Date.now();
+    tasks.set(id, { status: 'running', stdout: '', stderr: '', code: null, startedAt });
     exec(cmd, { cwd: workDir, timeout }, (error, stdout, stderr) => {
-      tasks.set(id, {
+      const result = {
         status: 'done',
         stdout: stdout || '',
         stderr: stderr || '',
         code: error ? (error.code ?? 1) : 0,
-        startedAt: tasks.get(id).startedAt,
+        startedAt,
         finishedAt: Date.now()
-      });
+      };
+      tasks.set(id, result);
+      auditLog({ cmd, cwd: workDir, stdout: result.stdout, stderr: result.stderr,
+                 code: result.code, async: true, taskId: id, ua });
     });
     return res.json({ taskId: id, status: 'running', poll: `/task/${id}?token=${TOKEN}` });
   }
 
   // Sync mode (default)
   exec(cmd, { cwd: workDir, timeout }, (error, stdout, stderr) => {
-    res.json({
+    const result = {
       stdout: stdout || '',
       stderr: stderr || '',
       code: error ? (error.code ?? 1) : 0,
       signal: error?.signal || null
-    });
+    };
+    auditLog({ cmd, cwd: workDir, stdout: result.stdout, stderr: result.stderr,
+               code: result.code, ua });
+    res.json(result);
   });
 });
 
@@ -137,6 +155,28 @@ app.get('/task/:id', (req, res) => {
   const task = tasks.get(req.params.id);
   if (!task) return res.status(404).json({ error: 'Task not found.' });
   res.json(task);
+});
+
+// ─── GET /audit — read audit log ──────────────────────────────────────────────
+app.get('/audit', (req, res) => {
+  if (!requireToken(req, res)) return;
+  const limit = parseInt(req.query.limit) || 200;
+  if (!fs.existsSync(AUDIT_FILE)) return res.json({ entries: [] });
+  const raw = fs.readFileSync(AUDIT_FILE, 'utf8');
+  const entries = raw.trim().split('\n')
+    .filter(Boolean)
+    .map(line => { try { return JSON.parse(line); } catch { return null; } })
+    .filter(Boolean)
+    .slice(-limit)
+    .reverse(); // newest first
+  res.json({ entries, total: entries.length });
+});
+
+// ─── DELETE /audit — clear audit log ─────────────────────────────────────────
+app.delete('/audit', (req, res) => {
+  if (!requireToken(req, res)) return;
+  fs.writeFileSync(AUDIT_FILE, '');
+  res.json({ ok: true });
 });
 
 // ─── POST /restart — regenerate token and restart ────────────────────────────
