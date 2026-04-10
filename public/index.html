@@ -545,6 +545,52 @@ main{
 .ae-output::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
 .ae-stderr{color:var(--accent)}
 
+/* ── Health check styles ── */
+.health-score{
+  font-family:var(--mono);font-size:11px;
+  background:rgba(255,255,255,0.06);border-radius:10px;
+  padding:1px 8px;color:var(--dim);margin-left:4px;
+}
+.health-bar-wrap{
+  height:4px;background:rgba(255,255,255,0.06);border-radius:2px;
+  margin:10px 0 14px;overflow:hidden;
+}
+.health-bar{height:100%;border-radius:2px;transition:width .6s ease}
+
+.check-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.check-item{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;padding:5px 8px;border-radius:7px;
+  background:rgba(255,255,255,0.03);
+}
+.check-icon{font-size:13px;flex-shrink:0;width:18px;text-align:center}
+.check-label{color:var(--dim);width:70px;flex-shrink:0}
+.check-score-bar{
+  width:40px;height:4px;background:rgba(255,255,255,0.08);
+  border-radius:2px;overflow:hidden;flex-shrink:0;
+}
+.check-score-bar span{display:block;height:100%;border-radius:2px;transition:width .4s}
+.check-val{font-family:var(--mono);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.check-val.ok{color:var(--ok)}
+.check-val.warn{color:var(--warn)}
+.check-val.err{color:var(--accent)}
+
+.health-issues{
+  background:rgba(232,69,69,0.06);border:1px solid rgba(232,69,69,0.18);
+  border-radius:9px;padding:10px 12px;
+}
+.health-issues-title{font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px}
+.health-issue-item{margin-bottom:8px}
+.health-issue-item:last-child{margin-bottom:0}
+.issue-text{font-size:12px;color:var(--dim);margin-bottom:3px}
+.issue-fix{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:4px}
+.issue-fix code{
+  font-family:var(--mono);color:var(--warn);
+  background:rgba(255,255,255,0.06);border-radius:4px;
+  padding:1px 6px;cursor:pointer;
+}
+.issue-fix code:hover{background:rgba(255,192,67,0.15)}
+
 </style>
 </head>
 <body>
@@ -646,10 +692,8 @@ main{
         <div class="dot dim spin"></div>
         <span data-zh="检查状态中…" data-en="Checking status…">检查状态中…</span>
       </div>
-      <!-- Table -->
-      <div id="status-table-wrap"></div>
-      <!-- Hint -->
-      <div id="status-hint"></div>
+      <!-- Detail area -->
+      <div id="status-detail"></div>
     </div>
   </div>
 
@@ -1085,80 +1129,98 @@ function escHtml(s) {
 // ── Status card ───────────────────────────────────────────────────────────────
 async function refreshStatus() {
   const stateEl = document.getElementById('status-state');
-  const tableWrap = document.getElementById('status-table-wrap');
-  const hintEl = document.getElementById('status-hint');
-  const svgEl = document.getElementById('status-svg');
+  const bodyEl  = document.getElementById('status-detail');
+  const svgEl   = document.getElementById('status-svg');
 
   const checkingText = currentLang === 'zh' ? '检查状态中…' : 'Checking status…';
   stateEl.innerHTML = `<div class="dot dim spin"></div><span>${checkingText}</span>`;
-  tableWrap.innerHTML = '';
-  hintEl.innerHTML = '';
+  bodyEl.innerHTML  = '';
   svgEl.classList.add('pulse');
 
   if (!TOKEN) {
-    stateEl.innerHTML = '<div class="dot err"></div><span>No token — add <code style="font-family:var(--mono);color:var(--warn)">?token=TOKEN</code> to the URL</span>';
+    stateEl.innerHTML = '<div class="dot err"></div><span>No token</span>';
     svgEl.classList.remove('pulse');
     return;
   }
 
   try {
-    const data = await apiFetch('/status');
+    const d = await apiFetch('/status');
     svgEl.classList.remove('pulse');
 
-    if (!data.installed || (data.stderr && (data.stderr.includes('command not found') || data.stderr.includes('not found')))) {
-      stateEl.innerHTML = '<div class="dot err"></div><span>OpenClaw not installed</span>';
-      hintEl.innerHTML = `<div class="hint-box">
-        OpenClaw is not installed on this machine.<br>
-        Install it with:<br>
-        <code>curl -fsSL https://openclaw.dev/install.sh | bash</code>
-      </div>`;
-      return;
-    }
+    // Level config
+    const levelMap = {
+      EXCELLENT: { dot: 'ok',   color: 'var(--ok)',     zh: '优秀', en: 'Excellent' },
+      GOOD:      { dot: 'ok',   color: 'var(--ok)',     zh: '良好', en: 'Good' },
+      FAIR:      { dot: 'warn', color: 'var(--warn)',   zh: '一般', en: 'Fair' },
+      WARNING:   { dot: 'warn', color: 'var(--warn)',   zh: '警告', en: 'Warning' },
+      CRITICAL:  { dot: 'err',  color: 'var(--accent)', zh: '危险', en: 'Critical' }
+    };
+    const level = d.level || 'CRITICAL';
+    const lc    = levelMap[level] || levelMap.CRITICAL;
+    const lbl   = currentLang === 'zh' ? lc.zh : lc.en;
+    const score = d.health_score ?? 0;
 
-    const rows = parseStatusTable(data.stdout);
-    const gatewayRow = rows.find(r => r.key.toLowerCase().includes('gateway service') || r.key.toLowerCase().includes('gateway'));
-    const isRunning  = gatewayRow && (gatewayRow.val.toLowerCase() === 'running' || gatewayRow.val.toLowerCase() === 'active');
+    stateEl.innerHTML = `
+      <div class="dot ${lc.dot}"></div>
+      <span style="color:${lc.color}">${lbl}</span>
+      <span class="health-score">${score}/100</span>`;
 
-    if (data.code !== 0 && rows.length === 0) {
-      stateEl.innerHTML = '<div class="dot err"></div><span>OpenClaw error — check terminal</span>';
-      hintEl.innerHTML = `<div class="hint-box">
-        OpenClaw returned an error (code ${data.code}).<br>
-        Open the terminal to investigate: <code>openclaw status</code>
-      </div>`;
-      return;
-    }
+    // Score bar
+    let html = `<div class="health-bar-wrap">
+      <div class="health-bar" style="width:${score}%;background:${lc.color}"></div>
+    </div>`;
 
-    if (isRunning) {
-      stateEl.innerHTML = '<div class="dot ok"></div><span style="color:var(--ok)">Running</span>';
-    } else if (rows.length > 0) {
-      stateEl.innerHTML = '<div class="dot warn"></div><span style="color:var(--warn)">Degraded / Partial</span>';
-    } else {
-      stateEl.innerHTML = '<div class="dot dim"></div><span>Status unknown</span>';
-    }
-
-    if (rows.length > 0) {
-      const priority = ['os','gateway','gateway service','agents','sessions','channel','version','uptime','status'];
-      const sorted = [...rows].sort((a, b) => {
-        const ai = priority.findIndex(p => a.key.toLowerCase().includes(p));
-        const bi = priority.findIndex(p => b.key.toLowerCase().includes(p));
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-      });
-
-      let html = '<table class="status-table">';
-      for (const r of sorted) {
-        html += `<tr><td>${escHtml(r.key)}</td><td>${valueBadge(r.val)}</td></tr>`;
+    // Check items — each has score 0-100
+    if (d.checks) {
+      html += '<div class="check-list">';
+      for (const [, chk] of Object.entries(d.checks)) {
+        const s = chk.status;
+        const icon = s === 'OK' ? '✅' : s === 'WARN' ? '⚠️' : '❌';
+        const valCls = s === 'OK' ? 'ok' : s === 'WARN' ? 'warn' : 'err';
+        const scoreBar = chk.score != null
+          ? `<span class="check-score-bar"><span style="width:${chk.score}%;background:var(--${valCls === 'ok' ? 'ok' : valCls === 'warn' ? 'warn' : 'accent'})"></span></span>`
+          : '';
+        html += `<div class="check-item">
+          <span class="check-icon">${icon}</span>
+          <span class="check-label">${escHtml(chk.label || '')}</span>
+          ${scoreBar}
+          <span class="check-val ${valCls}">${escHtml(String(chk.value || ''))}</span>
+        </div>`;
       }
-      html += '</table>';
-      tableWrap.innerHTML = html;
-    } else if (data.stdout) {
-      tableWrap.innerHTML = `<pre style="font-family:var(--mono);font-size:11px;color:var(--dim);white-space:pre-wrap;word-break:break-all;margin-top:8px">${escHtml(data.stdout.slice(0, 800))}</pre>`;
+      html += '</div>';
     }
+
+    // Issues & recommendations
+    if (d.issues && d.issues.length) {
+      const issTitle = currentLang === 'zh' ? '⚠️ 问题' : '⚠️ Issues';
+      const fixLabel = currentLang === 'zh' ? '修复：' : 'Fix: ';
+      html += `<div class="health-issues"><div class="health-issues-title">${issTitle}</div>`;
+      d.issues.forEach((iss, i) => {
+        const rec = d.recommendations && d.recommendations[i];
+        html += `<div class="health-issue-item">
+          <div class="issue-text">${escHtml(iss)}</div>
+          ${rec ? `<div class="issue-fix"><span>${fixLabel}</span><code onclick="setTermCmd(this)">${escHtml(rec)}</code></div>` : ''}
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    bodyEl.innerHTML = html;
 
   } catch (err) {
     svgEl.classList.remove('pulse');
     stateEl.innerHTML = '<div class="dot err"></div><span>Failed to fetch status</span>';
-    hintEl.innerHTML = `<div class="hint-box">Error: ${escHtml(err.message)}</div>`;
+    document.getElementById('status-detail').innerHTML =
+      `<div class="hint-box">Error: ${escHtml(err.message)}</div>`;
   }
+}
+
+// Click fix command → paste into terminal
+function setTermCmd(el) {
+  const cmd = el.textContent;
+  document.getElementById('term-input').value = cmd;
+  if (!document.getElementById('terminal-panel').classList.contains('open')) toggleTerminal();
+  document.getElementById('term-input').focus();
 }
 
 // ── Session card ──────────────────────────────────────────────────────────────

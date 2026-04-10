@@ -88,14 +88,156 @@ app.get('/', (req, res) => {
 // ─── GET /status ──────────────────────────────────────────────────────────────
 app.get('/status', (req, res) => {
   if (!requireToken(req, res)) return;
-  exec('openclaw status', { timeout: 30000 }, (error, stdout, stderr) => {
-    res.json({
-      installed: !stderr.includes('command not found') && !stderr.includes('not found'),
-      stdout: stdout || '',
-      stderr: stderr || '',
-      code: error ? (error.code ?? 1) : 0
-    });
-  });
+
+  const checkScript = `
+# 1. Gateway (weight 30)
+check_gateway() {
+  local out=$(openclaw gateway status 2>&1); local ec=$?
+  [ $ec -ne 0 ] && echo 50 && return
+  echo "$out" | grep -qiE "running|started|active" && echo 100 && return
+  echo "$out" | grep -qiE "stopped|inactive|dead" && echo 0 && return
+  echo 50
+}
+
+# 2. Version (weight 25)
+check_version() {
+  local cur=$(openclaw --version 2>/dev/null | grep -oE "[0-9]+\\.[0-9]+\\.[0-9]+" | head -1)
+  local lat=$(npm view openclaw version 2>/dev/null | tr -d "'" | tr -d '"' | xargs)
+  [ -z "$cur" ] || [ -z "$lat" ] && echo 50 && return
+  [ "$cur" = "$lat" ] && echo 100 && return
+  local cm=$(echo "$cur" | cut -d. -f1)
+  local cmi=$(echo "$cur" | cut -d. -f2)
+  local cp=$(echo "$cur" | cut -d. -f3)
+  local lm=$(echo "$lat" | cut -d. -f1)
+  local lmi=$(echo "$lat" | cut -d. -f2)
+  local lp=$(echo "$lat" | cut -d. -f3)
+  # major behind
+  [ "$cm" -lt "$lm" ] 2>/dev/null && echo 40 && return
+  # minor behind
+  local mdiff=$((lmi - cmi))
+  [ "$mdiff" -gt 3 ] 2>/dev/null && echo 40 && return
+  [ "$mdiff" -gt 0 ] 2>/dev/null && echo 60 && return
+  # patch behind
+  local pdiff=$((lp - cp))
+  [ "$pdiff" -gt 3 ] 2>/dev/null && echo 60 && return
+  [ "$pdiff" -gt 0 ] 2>/dev/null && echo 80 && return
+  echo 100
+}
+
+# 3. Skills (weight 20)
+check_skills() {
+  local cnt=$(find ~/.openclaw/skills ~/.openclaw/extensions -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
+  [[ "$cnt" =~ ^[0-9]+$ ]] || { echo 40; return; }
+  [ "$cnt" -ge 10 ] && echo 100 && return
+  [ "$cnt" -ge 5 ]  && echo 80  && return
+  [ "$cnt" -ge 2 ]  && echo 60  && return
+  echo 40
+}
+
+# 4. Network (weight 15)
+check_network() {
+  local ok=0
+  local c1=$(curl -s -o /dev/null -w "%{http_code}" "https://open.feishu.cn" --max-time 5 2>/dev/null)
+  [ "$c1" -lt 400 ] 2>/dev/null && ok=$((ok+1))
+  local c2=$(curl -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org" --max-time 5 2>/dev/null)
+  [ "$c2" -lt 400 ] 2>/dev/null && ok=$((ok+1))
+  local c3=$(curl -s -o /dev/null -w "%{http_code}" "https://wttr.in" --max-time 5 2>/dev/null)
+  [ "$c3" -lt 400 ] 2>/dev/null && ok=$((ok+1))
+  [ "$ok" -eq 3 ] && echo 100 && return
+  [ "$ok" -eq 2 ] && echo 60  && return
+  echo 0
+}
+
+# 5. Backup (weight 10)
+check_backup() {
+  local bd="$HOME/.openclaw/backups"
+  if [ -d "$bd" ]; then
+    local r=$(find "$bd" -type f -mtime -7 2>/dev/null | wc -l | tr -d ' ')
+    local t=$(find "$bd" -type f 2>/dev/null | wc -l | tr -d ' ')
+    [ "$r" -gt 0 ] 2>/dev/null && echo 100 && return
+    [ "$t" -gt 0 ] 2>/dev/null && echo 60  && return
+    echo 30; return
+  fi
+  if command -v tmutil &>/dev/null; then
+    local tm=$(tmutil status 2>/dev/null)
+    echo "$tm" | grep -qiE "running|success" && echo 100 && return
+    echo "$tm" | grep -qiE "configured|enabled" && echo 60 && return
+  fi
+  echo 30
+}
+
+# Run checks
+GW=$(check_gateway)
+VR=$(check_version)
+SK=$(check_skills)
+NW=$(check_network)
+BK=$(check_backup)
+
+# Weighted score: 30+25+20+15+10 = 100
+TOTAL=$(( GW*30/100 + VR*25/100 + SK*20/100 + NW*15/100 + BK*10/100 ))
+
+echo "SCORE=$TOTAL"
+echo "GW=$GW"
+echo "VR=$VR"
+echo "SK=$SK"
+echo "NW=$NW"
+echo "BK=$BK"
+echo "OPENCLAW_VER=$(openclaw --version 2>&1 | head -1)"
+echo "OPENCLAW_LATEST=$(npm view openclaw version 2>/dev/null | tr -d \"'\" | tr -d '\"' | xargs)"
+echo "NODE_VER=$(node -v 2>/dev/null || echo MISSING)"
+`.trim();
+
+  exec(`bash -c '${checkScript.replace(/'/g, "'\\''")}'`,
+    { timeout: 25000 },
+    (error, stdout) => {
+      const kv = {};
+      (stdout || '').split('\n').forEach(line => {
+        const idx = line.indexOf('=');
+        if (idx > 0) kv[line.slice(0, idx)] = line.slice(idx + 1).trim();
+      });
+
+      const score = parseInt(kv.SCORE || '0');
+      const level = score >= 90 ? 'EXCELLENT'
+                  : score >= 70 ? 'GOOD'
+                  : score >= 50 ? 'FAIR'
+                  : score >= 30 ? 'WARNING'
+                  : 'CRITICAL';
+
+      const gw = parseInt(kv.GW || '0');
+      const vr = parseInt(kv.VR || '0');
+      const sk = parseInt(kv.SK || '0');
+      const nw = parseInt(kv.NW || '0');
+      const bk = parseInt(kv.BK || '0');
+
+      const scoreToStatus = s => s >= 80 ? 'OK' : s >= 50 ? 'WARN' : 'ERR';
+
+      const issues = [];
+      const recommendations = [];
+
+      if (gw < 80) { issues.push('Gateway 未运行'); recommendations.push('openclaw gateway start'); }
+      if (vr < 80) { issues.push('版本落后，建议更新'); recommendations.push('npm update -g openclaw'); }
+      if (sk < 60) { issues.push('技能/插件较少'); recommendations.push('openclaw skills install'); }
+      if (nw < 60) { issues.push('网络连通性异常'); recommendations.push('检查网络连接'); }
+      if (bk < 60) { issues.push('无近期备份'); recommendations.push('openclaw backup'); }
+
+      res.json({
+        installed: true,
+        health_score: score,
+        level,
+        checks: {
+          gateway: { score: gw, status: scoreToStatus(gw), label: 'Gateway', value: gw === 100 ? 'running' : gw === 0 ? 'stopped' : 'unknown' },
+          version: { score: vr, status: scoreToStatus(vr), label: 'Version', value: vr === 100 ? kv.OPENCLAW_VER || 'unknown' : `${kv.OPENCLAW_VER || '?'} → latest: ${kv.OPENCLAW_LATEST || '?'}` },
+          skills:  { score: sk, status: scoreToStatus(sk), label: 'Skills',  value: sk === 100 ? '≥10' : sk === 80 ? '5-9' : sk === 60 ? '2-4' : '0-1' },
+          network: { score: nw, status: scoreToStatus(nw), label: 'Network', value: nw === 100 ? '3/3 reachable' : nw === 60 ? '2/3 reachable' : '≤1/3 reachable' },
+          backup:  { score: bk, status: scoreToStatus(bk), label: 'Backup',  value: bk === 100 ? 'recent backup' : bk === 60 ? 'old backup' : 'no backup' }
+        },
+        issues,
+        recommendations,
+        node: kv.NODE_VER || 'unknown',
+        timestamp: new Date().toISOString()
+      });
+    }
+  );
 });
 
 // ─── POST / — execute command ─────────────────────────────────────────────────
