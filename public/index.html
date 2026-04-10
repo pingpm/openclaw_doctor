@@ -522,6 +522,12 @@ main{
 .ae-code.ok{background:rgba(61,255,160,0.12);color:var(--ok)}
 .ae-code.err{background:rgba(232,69,69,0.15);color:var(--accent)}
 .ae-ua{color:var(--dim);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.ae-token{
+  font-family:var(--mono);font-size:11px;
+  padding:1px 7px;border-radius:10px;flex-shrink:0;
+  background:rgba(79,142,247,0.12);color:#4f8ef7;
+  border:1px solid rgba(79,142,247,0.2);
+}
 .ae-cmd{
   font-family:var(--mono);font-size:12px;color:var(--warn);
   background:rgba(255,255,255,0.04);border-radius:6px;
@@ -979,17 +985,25 @@ function renderAudit(entries) {
   }
   emptyEl.style.display = 'none';
   listEl.innerHTML = entries.map(e => {
-    const t = new Date(e.ts).toLocaleString();
+    const d = new Date(e.ts);
+    const t = d.toLocaleString(undefined, {
+      year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false
+    });
     const codeOk = e.code === 0;
     const codeLabel = codeOk ? 'exit 0' : `exit ${e.code}`;
     const out = (e.stdout || '').trim();
     const err = (e.stderr || '').trim();
     const combined = [out, err ? `[stderr] ${err}` : ''].filter(Boolean).join('\n');
-    const uaShort = (e.ua || '').replace(/^Mozilla\/[\d.]+ /, '').slice(0, 60);
+    const uaShort = (e.ua || '').replace(/^Mozilla\/[\d.]+ /, '').slice(0, 50);
+    const tokenBadge = e.tokenPrefix
+      ? `<span class="ae-token" title="Token prefix">${escHtml(e.tokenPrefix)}…</span>`
+      : '';
     return `<div class="audit-entry">
       <div class="ae-meta">
         <span class="ae-time">${escHtml(t)}</span>
         <span class="ae-code ${codeOk ? 'ok' : 'err'}">${codeLabel}</span>
+        ${tokenBadge}
         ${uaShort ? `<span class="ae-ua" title="${escHtml(e.ua || '')}">${escHtml(uaShort)}</span>` : ''}
       </div>
       <div class="ae-cmd">$ ${escHtml(e.cmd)}</div>

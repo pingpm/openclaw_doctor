@@ -16,9 +16,16 @@
 
 ## Quick Install
 
+**macOS / Linux:**
 ```bash
 curl -sSL https://ocd.imdaxia.com/install.sh | bash
 ```
+
+**Windows (PowerShell):**
+```powershell
+irm https://ocd.imdaxia.com/install.ps1 | iex
+```
+> Node.js is automatically downloaded if not installed. Run PowerShell as Administrator for best results.
 
 Within ~15 seconds you'll see:
 
@@ -44,12 +51,18 @@ The AI reads the built-in guide and starts working immediately.
 
 ## Stop / Restart
 
+**macOS / Linux:**
 ```bash
-# Stop the service
 bash ~/.openclaw-doctor/install.sh stop
+```
 
-# Or via curl (re-run also stops the old instance first)
-curl -sSL https://ocd.imdaxia.com/install.sh | bash -s stop
+**Windows:**
+```powershell
+# In the same PowerShell window where you installed:
+Stop-OCD
+
+# Or re-run to stop old instance and start fresh:
+irm https://ocd.imdaxia.com/install.ps1 | iex
 ```
 
 Re-running the install command automatically stops the old instance and starts a fresh one with a new token.

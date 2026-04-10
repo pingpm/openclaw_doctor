@@ -112,6 +112,19 @@
     }
     .hero-sub strong { color: var(--text); font-weight: 700; }
 
+    .install-tabs {
+      display: flex; gap: .5rem; margin-bottom: .75rem;
+    }
+    .tab-btn {
+      background: rgba(255,255,255,.05); border: 1px solid var(--border);
+      color: var(--dim); font-family: inherit;
+      font-size: .8rem; font-weight: 700;
+      padding: .4rem 1rem; border-radius: 8px; cursor: pointer;
+      transition: all .15s;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.09); }
+    .tab-btn.active { background: rgba(232,69,69,.15); color: var(--accent); border-color: rgba(232,69,69,.35); }
+
     /* ── Install ── */
     .install-wrap {
       display: flex; flex-direction: column; align-items: center; gap: 1rem;
@@ -327,11 +340,20 @@
   </p>
 
   <div class="install-wrap" id="install">
-    <div class="install-box">
-      <code id="install-cmd">curl -sSL https://ocd.imdaxia.com/install.sh | bash</code>
-      <button class="copy-btn" id="copy-btn" onclick="copyCmd()">复制</button>
+    <div class="install-tabs">
+      <button class="tab-btn active" onclick="switchTab('unix')">macOS / Linux</button>
+      <button class="tab-btn" onclick="switchTab('win')">Windows</button>
     </div>
-    <span class="install-note">支持 macOS · Linux · Windows（WSL）</span>
+    <div id="tab-unix" class="install-box">
+      <code>curl -sSL https://ocd.imdaxia.com/install.sh | bash</code>
+      <button class="copy-btn" id="copy-btn-unix" onclick="copyCmd('unix')">复制</button>
+    </div>
+    <div id="tab-win" class="install-box" style="display:none">
+      <code>irm https://ocd.imdaxia.com/install.ps1 | iex</code>
+      <button class="copy-btn" id="copy-btn-win" onclick="copyCmd('win')">复制</button>
+    </div>
+    <span class="install-note" id="install-note-unix">支持 macOS · Linux</span>
+    <span class="install-note" id="install-note-win" style="display:none">在 PowerShell 中运行 · 自动安装 Node.js（如未安装）</span>
   </div>
 </section>
 
@@ -516,16 +538,25 @@
 </footer>
 
 <script>
-  function copyCmd() {
-    const cmd = 'curl -sSL https://ocd.imdaxia.com/install.sh | bash';
-    navigator.clipboard.writeText(cmd).catch(() => {});
-    document.querySelectorAll('.copy-btn').forEach(b => {
-      b.textContent = '✓ 已复制';
-      setTimeout(() => b.textContent = '复制', 2000);
-    });
+  function switchTab(os) {
+    const isWin = os === 'win';
+    document.getElementById('tab-unix').style.display = isWin ? 'none' : 'flex';
+    document.getElementById('tab-win').style.display  = isWin ? 'flex' : 'none';
+    document.getElementById('install-note-unix').style.display = isWin ? 'none' : '';
+    document.getElementById('install-note-win').style.display  = isWin ? '' : 'none';
+    document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', isWin ? i === 1 : i === 0));
   }
 
-  // Intersection observer fade-in
+  function copyCmd(os) {
+    const cmd = os === 'win'
+      ? 'irm https://ocd.imdaxia.com/install.ps1 | iex'
+      : 'curl -sSL https://ocd.imdaxia.com/install.sh | bash';
+    navigator.clipboard.writeText(cmd).catch(() => {});
+    const btnId = os === 'win' ? 'copy-btn-win' : 'copy-btn-unix';
+    const btn = document.getElementById(btnId);
+    if (btn) { btn.textContent = '✓ 已复制'; setTimeout(() => btn.textContent = '复制', 2000); }
+  }
+
   const observer = new IntersectionObserver(entries => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.1 });

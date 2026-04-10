@@ -16,9 +16,16 @@
 
 ## 一键安装
 
+**macOS / Linux：**
 ```bash
 curl -sSL https://ocd.imdaxia.com/install.sh | bash
 ```
+
+**Windows（PowerShell）：**
+```powershell
+irm https://ocd.imdaxia.com/install.ps1 | iex
+```
+> 如未安装 Node.js，脚本会自动下载便携版。建议以管理员身份运行 PowerShell。
 
 约 15 秒后终端显示：
 
@@ -44,12 +51,18 @@ AI 读取内置操作指南后立即开始工作，无需额外说明。
 
 ## 停止 / 重启
 
+**macOS / Linux：**
 ```bash
-# 停止服务
 bash ~/.openclaw-doctor/install.sh stop
+```
 
-# 或通过 curl（重新安装时会自动先停止旧实例）
-curl -sSL https://ocd.imdaxia.com/install.sh | bash -s stop
+**Windows：**
+```powershell
+# 在安装时的 PowerShell 窗口中执行：
+Stop-OCD
+
+# 或重新运行安装命令（自动停止旧实例并以新 token 启动）：
+irm https://ocd.imdaxia.com/install.ps1 | iex
 ```
 
 重新执行安装命令会自动停止旧实例并以新 token 启动新实例。

@@ -1,29 +1,19 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "website/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "install.sh",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "server.js",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    }
+    { "src": "website/**", "use": "@vercel/static" },
+    { "src": "install.sh", "use": "@vercel/static" },
+    { "src": "install.ps1", "use": "@vercel/static" },
+    { "src": "server.js", "use": "@vercel/static" },
+    { "src": "public/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/install.sh", "dest": "/install.sh", "headers": { "Content-Type": "text/plain; charset=utf-8" } },
-    { "src": "/server.js", "dest": "/server.js", "headers": { "Content-Type": "application/javascript; charset=utf-8" } },
+    { "src": "/install.sh",  "dest": "/install.sh",  "headers": { "Content-Type": "text/plain; charset=utf-8" } },
+    { "src": "/install.ps1", "dest": "/install.ps1", "headers": { "Content-Type": "text/plain; charset=utf-8" } },
+    { "src": "/server.js",   "dest": "/server.js",   "headers": { "Content-Type": "application/javascript; charset=utf-8" } },
     { "src": "/public/(.*)", "dest": "/public/$1" },
-    { "src": "/zh", "dest": "/website/index.zh.html" },
-    { "src": "/", "dest": "/website/index.html" },
-    { "src": "/(.*)", "dest": "/website/$1" }
+    { "src": "/zh",          "dest": "/website/index.zh.html" },
+    { "src": "/",            "dest": "/website/index.html" },
+    { "src": "/(.*)",        "dest": "/website/$1" }
   ]
 }

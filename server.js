@@ -130,7 +130,8 @@ app.post('/', (req, res) => {
       };
       tasks.set(id, result);
       auditLog({ cmd, cwd: workDir, stdout: result.stdout, stderr: result.stderr,
-                 code: result.code, async: true, taskId: id, ua });
+                 code: result.code, async: true, taskId: id, ua,
+                 tokenPrefix: TOKEN.substring(0, 8) });
     });
     return res.json({ taskId: id, status: 'running', poll: `/task/${id}?token=${TOKEN}` });
   }
@@ -144,7 +145,7 @@ app.post('/', (req, res) => {
       signal: error?.signal || null
     };
     auditLog({ cmd, cwd: workDir, stdout: result.stdout, stderr: result.stderr,
-               code: result.code, ua });
+               code: result.code, ua, tokenPrefix: TOKEN.substring(0, 8) });
     res.json(result);
   });
 });
