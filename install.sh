@@ -145,7 +145,7 @@ log "Server starting (PID $SERVER_PID). Waiting for tunnel..."
 TUNNEL_URL=""
 for i in $(seq 1 40); do
   sleep 1
-  TUNNEL_URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG_FILE" 2>/dev/null || true)
+  TUNNEL_URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG_FILE" 2>/dev/null | head -1 || true)
   if [ -n "$TUNNEL_URL" ]; then break; fi
 done
 
