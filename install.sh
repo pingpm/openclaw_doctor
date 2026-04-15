@@ -42,6 +42,82 @@ echo -e "${RED}  🦞 OpenClaw Doctor — Remote Diagnostic Installer${NC}"
 echo "  ─────────────────────────────────────────────────"
 echo ""
 
+# ── Detect network region ─────────────────────────────────────────────────────
+detect_country() {
+  local result
+  local two_letter='^[A-Z]{2}$'
+
+  # Provider 1: ip-api.com
+  result=$(curl -s --connect-timeout 5 "http://ip-api.com/json/?fields=countryCode" 2>/dev/null \
+    | grep -o '"countryCode":"[A-Z]*"' | grep -o '[A-Z]*"' | tr -d '"')
+  if echo "$result" | grep -qE "$two_letter"; then echo "$result"; return; fi
+
+  # Provider 2: ifconfig.co
+  result=$(curl -s --connect-timeout 5 "https://ifconfig.co/country-iso" 2>/dev/null | tr -d '[:space:]')
+  if echo "$result" | grep -qE "$two_letter"; then echo "$result"; return; fi
+
+  # Provider 3: ipinfo.io
+  result=$(curl -s --connect-timeout 5 "https://ipinfo.io/country" 2>/dev/null | tr -d '[:space:]')
+  if echo "$result" | grep -qE "$two_letter"; then echo "$result"; return; fi
+
+  echo ""
+}
+
+log "Checking network environment..."
+COUNTRY=$(detect_country | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')
+log "Detected country code: [$COUNTRY]"
+
+if [ -z "$COUNTRY" ]; then
+  warn "Could not detect network region. Proceeding without acceleration."
+elif [ "$COUNTRY" = "CN" ]; then
+  echo ""
+  echo -e "${YELLOW}╔══════════════════════════════════════════════════╗${NC}"
+  echo -e "${YELLOW}║  🌏 Network Environment: Mainland China (CN)     ║${NC}"
+  echo -e "${YELLOW}║  GitHub proxy acceleration has been enabled.     ║${NC}"
+  echo -e "${YELLOW}╚══════════════════════════════════════════════════╝${NC}"
+  echo ""
+else
+  echo ""
+  echo -e "${GREEN}╔══════════════════════════════════════════════════╗${NC}"
+  echo -e "${GREEN}║  🌐 Network Environment: International ($COUNTRY)$(printf '%*s' $((14 - ${#COUNTRY})) '')║${NC}"
+  echo -e "${GREEN}║  Direct connection will be used.                 ║${NC}"
+  echo -e "${GREEN}╚══════════════════════════════════════════════════╝${NC}"
+  echo ""
+fi
+
+# ── Configure CN acceleration for cloudflared binary ─────────────────────────
+if [ "$COUNTRY" = "CN" ]; then
+  log "Configuring GitHub proxy acceleration for cloudflared..."
+
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  ARCH=$(uname -m)
+  if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi
+  if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi
+
+  log "Fetching latest cloudflared version..."
+  LATEST_VERSION=$(curl -sI https://github.com/cloudflare/cloudflared/releases/latest \
+    | grep -i location | sed 's/.*\/tag\///' | tr -d '\r' | sed 's/^v//')
+
+  if [ -z "$LATEST_VERSION" ]; then
+    LATEST_VERSION="2024.4.1"
+    warn "Failed to fetch latest version, using fallback: $LATEST_VERSION"
+  else
+    ok "Latest cloudflared version: $LATEST_VERSION"
+  fi
+
+  if [ "$OS" = "darwin" ]; then
+    BINARY_FILE="cloudflared-darwin-${ARCH}.tgz"
+  elif [ "$OS" = "linux" ]; then
+    BINARY_FILE="cloudflared-linux-${ARCH}"
+  fi
+
+  if [ -n "$BINARY_FILE" ]; then
+    GITHUB_URL="https://github.com/cloudflare/cloudflared/releases/download/${LATEST_VERSION}/${BINARY_FILE}"
+    export CLOUDFLARED_BIN_URL="https://githubproxy.cc/${GITHUB_URL}"
+    ok "Proxy URL set: $CLOUDFLARED_BIN_URL"
+  fi
+fi
+
 # ── Check / install Node.js ───────────────────────────────────────────────────
 ensure_node() {
   if command -v node &>/dev/null; then
@@ -83,7 +159,6 @@ if [ -f "$PID_FILE" ]; then
   fi
   rm -f "$PID_FILE"
 fi
-# Also clean up any orphaned cloudflared tunnels on port $PORT
 pkill -f "cloudflared tunnel --url http://localhost:${PORT}" 2>/dev/null || true
 
 # ── Ensure Node.js ────────────────────────────────────────────────────────────
@@ -124,9 +199,18 @@ ok "Server files downloaded."
 
 # ── Install npm dependencies ──────────────────────────────────────────────────
 log "Installing Node.js dependencies (this may take ~30s)..."
-npm install --prefer-offline --no-audit --no-fund --loglevel=error 2>&1 \
-  || npm install --no-audit --no-fund --loglevel=error 2>&1 \
-  || die "npm install failed. Check your internet connection."
+
+if [ "$COUNTRY" = "CN" ]; then
+  log "Using Taobao npm mirror for faster downloads..."
+  npm install --registry=https://registry.npmmirror.com --prefer-offline --no-audit --no-fund --loglevel=error 2>&1 \
+    || npm install --registry=https://registry.npmmirror.com --no-audit --no-fund --loglevel=error 2>&1 \
+    || die "npm install failed. Check your internet connection."
+else
+  npm install --prefer-offline --no-audit --no-fund --loglevel=error 2>&1 \
+    || npm install --no-audit --no-fund --loglevel=error 2>&1 \
+    || die "npm install failed. Check your internet connection."
+fi
+
 ok "Dependencies installed."
 
 # ── Generate token ────────────────────────────────────────────────────────────

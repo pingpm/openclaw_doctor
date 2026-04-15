@@ -41,13 +41,11 @@ function Stop-OCD {
     } else {
         Write-Host "[ocd] ⚠️  No running instance found (no PID file)." -ForegroundColor Yellow
     }
-    # Kill any orphaned cloudflared tunnels on this port
     Get-Process -Name "cloudflared" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -like "*localhost:$PORT*" } |
         Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
-# If called with "stop" argument
 if ($args[0] -eq "stop") {
     Stop-OCD
     exit 0
@@ -73,14 +71,71 @@ if (Test-Path $PID_FILE) {
     }
     Remove-Item $PID_FILE -Force -ErrorAction SilentlyContinue
 }
-# Kill orphaned cloudflared
 Get-Process -Name "cloudflared" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like "*localhost:$PORT*" } |
     Stop-Process -Force -ErrorAction SilentlyContinue
 
+# ── Detect network region ─────────────────────────────────────────────────────
+function Get-Country {
+    $providers = @(
+        { (Invoke-RestMethod -Uri "http://ip-api.com/json/?fields=countryCode" -TimeoutSec 5).countryCode },
+        { (Invoke-RestMethod -Uri "https://ifconfig.co/country-iso" -TimeoutSec 5).Trim() },
+        { (Invoke-RestMethod -Uri "https://ipinfo.io/country" -TimeoutSec 5).Trim() }
+    )
+    foreach ($p in $providers) {
+        try {
+            $result = & $p
+            if ($result -match '^[A-Z]{2}$') { return $result }
+        } catch {}
+    }
+    return ""
+}
+
+Write-Host "[ocd] Checking network environment..." -ForegroundColor Cyan
+$country = Get-Country
+
+if ([string]::IsNullOrEmpty($country)) {
+    Write-Host "[ocd] ⚠️  Could not detect network region. Proceeding without acceleration." -ForegroundColor Yellow
+} elseif ($country -eq "CN") {
+    Write-Host ""
+    Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Yellow
+    Write-Host "║  🌏 Network Environment: Mainland China (CN)     ║" -ForegroundColor Yellow
+    Write-Host "║  GitHub proxy acceleration has been enabled.     ║" -ForegroundColor Yellow
+    Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor Yellow
+    Write-Host ""
+
+    Write-Host "[ocd] Configuring GitHub proxy acceleration for cloudflared..." -ForegroundColor Yellow
+    Write-Host "[ocd] Fetching latest cloudflared version..." -ForegroundColor Cyan
+    try {
+        $resp = Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest" `
+            -MaximumRedirection 0 -ErrorAction SilentlyContinue
+        $version = $resp.BaseResponse.ResponseUri.ToString().Split('/')[-1].TrimStart('v')
+    } catch { $version = "" }
+
+    if ([string]::IsNullOrEmpty($version)) {
+        $version = "2024.4.1"
+        Write-Host "[ocd] ⚠️  Failed to fetch latest version, using fallback: $version" -ForegroundColor Yellow
+    } else {
+        Write-Host "[ocd] ✅ Latest cloudflared version: $version" -ForegroundColor Green
+    }
+
+    $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
+    $binaryFile = "cloudflared-windows-$arch.exe"
+    $githubUrl = "https://github.com/cloudflare/cloudflared/releases/download/$version/$binaryFile"
+    $env:CLOUDFLARED_BIN_URL = "https://githubproxy.cc/$githubUrl"
+    Write-Host "[ocd] ✅ Proxy URL set: $env:CLOUDFLARED_BIN_URL" -ForegroundColor Green
+} else {
+    Write-Host ""
+    Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Green
+    Write-Host "║  🌐 Network Environment: International ($country)$((' ' * (14 - $country.Length)))║" -ForegroundColor Green
+    Write-Host "║  Direct connection will be used.                 ║" -ForegroundColor Green
+    Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host ""
+}
+
 # ── Check / install Node.js ───────────────────────────────────────────────────
-$nodeExe = "node"
 $portableNodeDir = "$INSTALL_DIR\node-bin"
+$nodeExe = "node"
 
 function Test-Node {
     if (Get-Command node -ErrorAction SilentlyContinue) { return $true }
@@ -169,18 +224,27 @@ try {
 Write-Host "[ocd] Installing Node.js dependencies (this may take ~30s)..." -ForegroundColor Cyan
 
 $npmExe = if (Test-Path "$portableNodeDir\npm.cmd") { "$portableNodeDir\npm.cmd" } else { "npm" }
+$npmArgs = @("install", "--prefer-offline", "--no-audit", "--no-fund", "--loglevel=error")
+
+if ($country -eq "CN") {
+    Write-Host "[ocd] Using Taobao npm mirror for faster downloads..." -ForegroundColor Cyan
+    $npmArgs += "--registry=https://registry.npmmirror.com"
+}
 
 try {
-    & $npmExe install --prefer-offline --no-audit --no-fund --loglevel=error 2>&1 | Out-Null
+    & $npmExe @npmArgs 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
     Write-Host "[ocd] ✅ Dependencies installed." -ForegroundColor Green
 } catch {
-    & $npmExe install --no-audit --no-fund --loglevel=error
+    # Retry without --prefer-offline
+    $npmArgs = $npmArgs | Where-Object { $_ -ne "--prefer-offline" }
+    & $npmExe @npmArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ocd] ❌ npm install failed. Check your internet connection." -ForegroundColor Red
         Read-Host "Press Enter to exit"
         exit 1
     }
+    Write-Host "[ocd] ✅ Dependencies installed." -ForegroundColor Green
 }
 
 # ── Generate token ────────────────────────────────────────────────────────────
@@ -229,7 +293,6 @@ if ($TUNNEL_URL) {
     Write-Host ""
     Write-Host "  To stop: Stop-OCD  (or close this window)" -ForegroundColor Gray
 
-    # Copy full link to clipboard
     try {
         Set-Clipboard -Value $FULL_LINK
         Write-Host "  📋 Full link copied to clipboard!" -ForegroundColor Green
