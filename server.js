@@ -256,6 +256,13 @@ app.post('/', (req, res) => {
   const ua = req.headers['user-agent'] || '';
   console.log(`[exec] ${cmd}`);
 
+  // Intercept stop commands — kill self gracefully
+  if (/pkill.*openclaw-doctor|kill.*openclaw.doctor/i.test(cmd)) {
+    res.json({ stdout: 'OpenClaw Doctor stopping...', stderr: '', code: 0 });
+    setTimeout(() => process.exit(0), 300);
+    return;
+  }
+
   // Async mode: return task ID immediately, run in background
   if (isAsync) {
     const id = crypto.randomBytes(8).toString('hex');
@@ -334,6 +341,13 @@ app.post('/restart', (req, res) => {
 app.get('/info', (req, res) => {
   if (!requireToken(req, res)) return;
   res.json({ token: TOKEN, tunnelUrl, port: PORT, pid: process.pid });
+});
+
+// ─── POST /stop — gracefully stop the doctor service ─────────────────────────
+app.post('/stop', (req, res) => {
+  if (!requireToken(req, res)) return;
+  res.json({ ok: true, message: 'OpenClaw Doctor is shutting down...' });
+  setTimeout(() => process.exit(0), 300);
 });
 
 // ─── Static files — after all routes so GET /?token= is handled first ─────────
