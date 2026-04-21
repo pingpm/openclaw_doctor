@@ -47,6 +47,14 @@ Send the **Full link** to any AI tool (Kiro, Cursor, Claude, Trae, Antigravityâ€
 
 The AI reads the built-in guide and starts working immediately.
 
+### Tip for AI coding tools
+
+When using AI coding assistants (Kiro, Cursor, Copilot, etc.), if the AI doesn't know how to operate the remote machine, tell it to **fetch the guide via `curl`**:
+
+> "I can't upgrade openclaw with `npm install -g openclaw@latest`. Use `curl` to fetch the operation guide from this link and follow the instructions: https://xxxx.trycloudflare.com/?token=YOUR_TOKEN"
+
+The AI will call `curl` to retrieve the Markdown guide and immediately know what commands to run.
+
 ---
 
 ## Stop / Restart

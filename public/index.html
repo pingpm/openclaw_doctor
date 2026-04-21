@@ -767,7 +767,12 @@ main{
             <div class="ep-tag" data-zh="示例 3" data-en="Example 3">示例 3</div>
             <div class="ep-text"><span data-zh="帮我查看远程电脑上 OpenClaw 的日志，找出报错原因：" data-en="Check OpenClaw logs on the remote machine and find the error: ">帮我查看远程电脑上 OpenClaw 的日志，找出报错原因：</span><span class="ep-link">https://xxxx.trycloudflare.com/?token=...</span></div>
           </div>
+          <div class="ep-item" style="border-color:rgba(61,255,160,0.2);background:rgba(61,255,160,0.03)">
+            <div class="ep-tag" style="color:var(--ok);background:rgba(61,255,160,0.1);border-color:rgba(61,255,160,0.25)" data-zh="遇到困难" data-en="Stuck?">遇到困难</div>
+            <div class="ep-text"><span data-zh="我使用命令 npm install -g openclaw@latest 无法升级 openclaw，你可以使用 curl 获取这个链接的内容以获得如何操作这台电脑的使用帮助：" data-en="I can't upgrade openclaw with npm install -g openclaw@latest. Use curl to fetch the operation guide from this link: ">我使用命令 npm install -g openclaw@latest 无法升级 openclaw，你可以使用 curl 获取这个链接的内容以获得如何操作这台电脑的使用帮助：</span><span class="ep-link">https://xxxx.trycloudflare.com/?token=...</span></div>
+          </div>
         </div>
+        <p style="margin-top:10px;font-size:12px;color:var(--ok);background:rgba(61,255,160,0.05);border:1px solid rgba(61,255,160,0.15);border-radius:8px;padding:8px 12px;line-height:1.7" data-zh="💡 AI 不知道怎么操作？告诉它用 curl 获取链接内容，AI 会自动读取操作指南并开始工作。" data-en="💡 AI doesn't know what to do? Tell it to use curl to fetch the link — it will read the operation guide and start working immediately.">💡 AI 不知道怎么操作？告诉它用 curl 获取链接内容，AI 会自动读取操作指南并开始工作。</p>
         <p style="margin-top:12px;font-size:12px;color:var(--dim)" data-zh="支持的 AI 工具：OpenClaw · Kiro · Cursor · Trae · Antigravity · Claude · 任何支持 HTTP 接口的 AI" data-en="Supported AI tools: OpenClaw · Kiro · Cursor · Trae · Antigravity · Claude · Any AI with HTTP support">支持的 AI 工具：OpenClaw · Kiro · Cursor · Trae · Antigravity · Claude · 任何支持 HTTP 接口的 AI</p>
       </div>
 
@@ -833,11 +838,11 @@ Content-Type: application/json
         <div class="htu-step">
           <div class="htu-step-num">4</div>
           <div class="htu-step-body">
-            <strong data-zh="获取完整操作指南" data-en="Get the full operation guide">获取完整操作指南</strong>
-            <p data-zh="直接 GET 这个 URL，不要设置 User-Agent 请求头（设置了会被识别为浏览器，返回 HTML 而非指南）：" data-en="GET this URL without a User-Agent header (setting one causes the server to return HTML instead of the guide):">直接 GET 这个 URL，<strong style="color:var(--warn)">不要设置 User-Agent 请求头</strong>（设置了会被识别为浏览器，返回 HTML 而非指南）：</p>
-            <pre class="code-block">GET https://xxxx.trycloudflare.com/?token=TOKEN
-# 不要添加 User-Agent 头
+            <strong data-zh="遇到困难？用 curl 获取完整操作指南" data-en="Stuck? Use curl to get the full operation guide">遇到困难？用 curl 获取完整操作指南</strong>
+            <p data-zh="如果不知道如何操作，直接用 curl GET 这个链接，不要设置 User-Agent 请求头，即可获取完整 Markdown 操作指南：" data-en="If you're unsure what to do, use curl to GET this URL without a User-Agent header to receive the full Markdown operation guide:">如果不知道如何操作，直接用 <code>curl</code> GET 这个链接，<strong style="color:var(--warn)">不要设置 User-Agent 请求头</strong>（设置了会被识别为浏览器，返回 HTML 而非指南）：</p>
+            <pre class="code-block">curl "https://xxxx.trycloudflare.com/?token=TOKEN"
 # 返回包含所有命令示例的完整 Markdown 指南</pre>
+            <p data-zh="指南包含所有可用命令、API 用法和常见问题的解决步骤，读完即可开始操作。" data-en="The guide contains all available commands, API usage, and troubleshooting steps. Read it and start working.">指南包含所有可用命令、API 用法和常见问题的解决步骤，读完即可开始操作。</p>
           </div>
         </div>
       </div>

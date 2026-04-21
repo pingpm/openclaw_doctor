@@ -47,6 +47,14 @@ irm https://ocd.imdaxia.com/install.ps1 | iex
 
 AI 读取内置操作指南后立即开始工作，无需额外说明。
 
+### 给 AI 编程工具用户的提示
+
+使用 AI 编程助手（Kiro、Cursor、Copilot 等）时，如果 AI 不知道如何操作远程电脑，告诉它**用 `curl` 获取操作帮助**：
+
+> "我使用命令 `npm install -g openclaw@latest` 无法升级 openclaw，你可以使用 curl 获取这个链接的内容以获得如何操作这台电脑的使用帮助：https://xxxx.trycloudflare.com/?token=YOUR_TOKEN"
+
+AI 会调用 `curl` 拉取 Markdown 操作指南，立刻知道该执行哪些命令。
+
 ---
 
 ## 停止 / 重启
